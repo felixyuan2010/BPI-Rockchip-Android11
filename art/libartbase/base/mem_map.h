@@ -35,7 +35,17 @@ namespace art {
 #if defined(__LP64__) && !defined(__Fuchsia__) && !defined(__x86_64__)
 #error "Unrecognized 64-bit architecture."
 #endif
-#define USE_ART_LOW_4G_ALLOCATOR 0
+// 2026-10-18 (Banana Pi R2 Pro / RK3568 Android 11 build on Apple Silicon):
+// On x86_64 hosts the low-4GB guarantee relies on the MAP_32BIT mmap flag. Under
+// Rosetta 2 / qemu-user translation MAP_32BIT is silently dropped (ARM64 kernels
+// have no such concept; verified in-container: mmap(MAP_32BIT) returned
+// 0x7ffffe5d4000). dex2oatd64 cross-compiling 32-bit targets then places its
+// LinearAlloc above 4GB and aborts in Runtime::CreateImtConflictMethod ->
+// ArtMethod::SetNativePointer with a dchecked_integral_cast failure. The
+// linear-scan low-4GB allocator (aarch64 path) is plain mmap-with-hint plus a
+// <4GB result check, which works on any 64-bit host, so enable it on x86_64 too.
+// Host-only change: device builds (aarch64/arm) are unaffected.
+#define USE_ART_LOW_4G_ALLOCATOR 1
 #endif
 
 #ifdef __linux__

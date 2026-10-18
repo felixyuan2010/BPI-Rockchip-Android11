@@ -26,7 +26,15 @@ ifeq ($(strip $(BOARD_USES_AB_IMAGE)), true)
 endif
 
 PRODUCT_UBOOT_CONFIG := rk3568
-PRODUCT_KERNEL_DTS := rk3568-evb1-ddr4-v10
+# 2026-10-18: product DTS (SMDT live-tree staticized: DSI0 1920x1200@VP0 +
+# eDP 1200x1920@VP1 + smdt_param + 8 uboot live patches). Evb1 baseline kept
+# as comment for rollback. See docs/34-preflash-dts-adaptation-checklist.md.
+PRODUCT_KERNEL_DTS := rk3568-iot3568a
 BOARD_GSENSOR_MXC6655XA_SUPPORT := true
 BOARD_CAMERA_SUPPORT_EXT := true
 BOARD_HS_ETHERNET := true
+
+# 2026-10-18: disable PCBA factory-test toolchain (unstripped wifi .ko ~146MB
+# uncompressed blew recovery ramdisk to 66MB -> recovery.img 97.5MB > 96MB
+# partition limit). Reference: bananapi_r2pro / rk356x_box both set false.
+TARGET_ROCKCHIP_PCBATEST := false

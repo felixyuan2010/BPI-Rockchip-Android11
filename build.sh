@@ -102,9 +102,13 @@ KERNEL_ARCH=`get_build_var PRODUCT_KERNEL_ARCH`
 KERNEL_DEFCONFIG=`get_build_var PRODUCT_KERNEL_CONFIG`
 if [ "$KERNEL_DTS" = "" ] ; then
 KERNEL_DTS=`get_build_var PRODUCT_KERNEL_DTS`
-else
-KERNEL_DTS=${KERNEL_DTS}.img
 fi
+# 2026-10-18: KERNEL_DTS now always holds the bare dtb name (no .img suffix),
+# on both the -D path and the PRODUCT_KERNEL_DTS path. The kernel build line
+# below appends .img to hit the arch/arm64/Makefile %.img rule, which packs
+# the dtb into resource.img (the boot.img --second payload). The BPI original
+# appended .img here only for the -D path, which made the build line produce
+# "xxx.img.img" (no such make target) whenever -D was passed.
 echo "-------------------KERNEL_DTS:$KERNEL_DTS"
 PACK_TOOL_DIR=RKTools/linux/Linux_Pack_Firmware
 IMAGE_PATH=rockdev/Image-$TARGET_PRODUCT
@@ -136,7 +140,7 @@ fi
 # build kernel
 if [ "$BUILD_KERNEL" = true ] ; then
 echo "Start build kernel"
-cd kernel && make clean && make $ADDON_ARGS ARCH=$KERNEL_ARCH $KERNEL_DEFCONFIG && make $ADDON_ARGS ARCH=$KERNEL_ARCH $KERNEL_DTS -j$BUILD_JOBS && cd -
+cd kernel && make clean && make $ADDON_ARGS ARCH=$KERNEL_ARCH $KERNEL_DEFCONFIG && make $ADDON_ARGS ARCH=$KERNEL_ARCH olddefconfig && make $ADDON_ARGS ARCH=$KERNEL_ARCH $KERNEL_DTS.img -j$BUILD_JOBS && cd -
 if [ $? -eq 0 ]; then
     echo "Build kernel ok!"
 else
