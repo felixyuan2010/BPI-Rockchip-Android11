@@ -30,6 +30,16 @@ DEVICE_PACKAGE_OVERLAYS += $(LOCAL_PATH)/../overlay
 
 PRODUCT_CHARACTERISTICS := tablet
 
+# 2026-10-18: platform signing key (our own keypair; SMDT vendor private key
+# unobtainable). Framework + all LOCAL_CERTIFICATE := platform apps + the
+# vision_app APK share this key, granting signature-level permissions
+# (INJECT_EVENTS / WRITE_SECURE_SETTINGS / CHANGE_NETWORK_STATE /
+# WRITE_SETTINGS / MANAGE_EXTERNAL_STORAGE / ACCESS_ALL_EXTERNAL_STORAGE).
+# Key files are NOT committed to git (private material); backup at
+# firmware/platform-keys/ (Mac). NOTE: PRODUCT_* vars must live in the
+# product makefile, NOT BoardConfig.mk (readonly after product config).
+PRODUCT_DEFAULT_DEV_CERTIFICATE := $(LOCAL_PATH)/security/platform
+
 PRODUCT_NAME := rk3568_r
 PRODUCT_DEVICE := rk3568_r
 PRODUCT_BRAND := rockchip
