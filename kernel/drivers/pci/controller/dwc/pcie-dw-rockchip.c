@@ -759,7 +759,7 @@ static int rk_pcie_add_ep(struct rk_pcie *rk_pcie)
 	return 0;
 }
 
-static void rk_pcie_clk_deinit(struct rk_pcie *rk_pcie)
+static void __maybe_unused rk_pcie_clk_deinit(struct rk_pcie *rk_pcie)
 {
 	clk_bulk_disable(rk_pcie->clk_cnt, rk_pcie->clks);
 	clk_bulk_unprepare(rk_pcie->clk_cnt, rk_pcie->clks);

@@ -2750,7 +2750,7 @@
 				native-mode = <&dsi0_timing>;
 
 				dsi0_timing: dsi0_timing {
-					clock-frequency = <0x8f56560>;
+					clock-frequency = <0x8f50db0>;
 					hactive = <0x780>;
 					vactive = <0x4b0>;
 					hback-porch = <0x40>;
