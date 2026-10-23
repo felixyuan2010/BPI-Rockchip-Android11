@@ -260,6 +260,7 @@ static const struct dev_pm_ops dwc3_rockchip_dev_pm_ops = {
 
 static const struct of_device_id rockchip_dwc3_match[] = {
 	{ .compatible = "rockchip,rk3328-dwc3" },
+	{ .compatible = "rockchip,rk3568-dwc3" },
 	{ /* Sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, rockchip_dwc3_match);

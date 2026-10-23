@@ -945,7 +945,7 @@
 	};
 
 	usbdrd30: usbdrd {
-		compatible = "rockchip,rk3568-dwc3\0rockchip,rk3399-dwc3";
+		compatible = "rockchip,rk3568-dwc3\0rockchip,rk3328-dwc3";
 		clocks = <0x1f 0xa6 0x1f 0xa7 0x1f 0xa5 0x1f 0x7f>;
 		clock-names = "ref_clk\0suspend_clk\0bus_clk\0pipe_clk";
 		#address-cells = <0x02>;
