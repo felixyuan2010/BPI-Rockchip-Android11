@@ -22,10 +22,17 @@ ${_block_prefix}system_ext /system_ext  ext4 ro,barrier=1 ${_flags},first_stage_
 /dev/block/zram0                                none                swap      defaults                                              zramsize=50%
 # For sdmmc
 /devices/platform/${_sdmmc_device}/mmc_host*        auto  auto    defaults        voldmanaged=sdcard1:auto
-#  Build10 (2026-10-22): /data as plaintext ext4, NO FBE/FDE.
-#  Removes vold's dependency on keymaster/weaver key unwrap, which previously
-#  blocked /data mount when a differently-signed firmware had formatted it
-#  (cryptfs mountFstab /data Failed @8.0s -> credstore crash -> boot stuck at
-#  Android logo). Reference f2fs+FBE line kept commented for rollback.
-#/dev/block/by-name/userdata /data f2fs noatime,nosuid,nodev${_sync_flags},discard,reserve_root=32768,resgid=1065 latemount,wait,check,fileencryption=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized,keydirectory=/metadata/vold/metadata_encryption,quota,formattable,reservedsize=128M,checkpoint=fs
-/dev/block/by-name/userdata /data ext4 discard,noatime,nosuid,nodev${_sync_flags},noauto_da_alloc,data=ordered,user_xattr,barrier=1 latemount,wait,formattable,check,quota,reservedsize=128M
+#  Build10 (2026-10-22): /data as plaintext ext4, NO FBE/FDE — disabled fscrypt to
+#  dodge keymaster/weaver key-unwrap failure on differently-signed firmware
+#  (brick #3: cryptfs mountFstab /data Failed @8.0s -> credstore crash -> logo).
+#  Build15 (2026-10-23): REVERT to f2fs + FBE to re-enable Android's NATIVE fscrypt
+#  self-heal. init/builtins.cpp sets ro.crypto.type=file on FS_MGR_MNTALL_DEV_FILE/
+#  METADATA_ENCRYPTED, so fscrypt_is_native()=true. A carried/factory /data (or a
+#  foreign /metadata key) now fails FBE setup -> prompt_and_wipe_data ->
+#  reboot_into_recovery --wipe_data, and recovery wipes BOTH /data AND /metadata
+#  (bootable/recovery/.../roots.cpp "metadata. Wipe it too." + wipe_data.cpp
+#  EraseVolume(/metadata)). Next boot regenerates both -> clean. This is exactly
+#  SMDT's self-heal; kernel has F2FS_FS_ENCRYPTION + DM_DEFAULT_KEY + inline crypt.
+#  Plaintext-ext4 line kept below as a one-line rollback if FBE misbehaves on a board.
+/dev/block/by-name/userdata /data f2fs noatime,nosuid,nodev${_sync_flags},discard,reserve_root=32768,resgid=1065 latemount,wait,check,fileencryption=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized,keydirectory=/metadata/vold/metadata_encryption,quota,formattable,reservedsize=128M,checkpoint=fs
+#/dev/block/by-name/userdata /data ext4 discard,noatime,nosuid,nodev${_sync_flags},noauto_da_alloc,data=ordered,user_xattr,barrier=1 latemount,wait,formattable,check,quota,reservedsize=128M
