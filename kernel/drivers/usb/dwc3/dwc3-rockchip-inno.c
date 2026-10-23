@@ -172,6 +172,8 @@ static int dwc3_rockchip_probe(struct platform_device *pdev)
 	mutex_init(&rockchip->lock);
 
 	rockchip->phy = devm_usb_get_phy(dev, USB_PHY_TYPE_USB3);
+	if (IS_ERR(rockchip->phy))
+		rockchip->phy = NULL;	/* rk3568: no legacy USB3 usb_phy (combphy); normalize ERR_PTR to NULL */
 	if (rockchip->phy) {
 		INIT_WORK(&rockchip->u3_work, u3phy_disconnect_det_work);
 		rockchip->u3phy_nb.notifier_call =
