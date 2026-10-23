@@ -2344,6 +2344,10 @@ static void gtp_parse_dt(struct device *dev)
 	int ret = 0;
 	
 	gtp_int_gpio = of_get_named_gpio(np, "irq-gpio", 0);
+	/* SMDT-derived boards name the INT pin "touch-gpio" instead of the
+	 * standard "irq-gpio"; fall back so the driver works on both. */
+	if (gtp_int_gpio < 0)
+		gtp_int_gpio = of_get_named_gpio(np, "touch-gpio", 0);
 	gtp_rst_gpio = of_get_named_gpio(np, "reset-gpio", 0);
 
 	ret = of_property_read_u32(np, "rotation", &temp_val);
