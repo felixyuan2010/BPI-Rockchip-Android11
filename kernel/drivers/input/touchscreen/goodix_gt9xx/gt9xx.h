@@ -53,7 +53,9 @@
 //***************************PART1:ON/OFF define*******************************
 #define GTP_CUSTOM_CFG        0
 #define GTP_CHANGE_X2Y        0	   //swap x y
-#define GTP_DRIVER_SEND_CFG   1	   //driver send config
+#define GTP_DRIVER_SEND_CFG   0	   //use module on-flash config; no goodix,cfg-groupN in DTS (SMDT factory dtb has none either). BPI switch only knew 0x1040/0x1070;
+                                //our panel reports Chip_Version 0x1060 -> default: return -EINVAL (-22) -> probe fail.
+                                //Flash config path reads the chip's own config, matches factory behavior.
 #define GTP_HAVE_TOUCH_KEY    0
 #define GTP_POWER_CTRL_SLEEP  0    //power off when suspend
 #define GTP_ICS_SLOT_REPORT   1    // slot protocol
