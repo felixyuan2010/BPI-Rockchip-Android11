@@ -18,3 +18,22 @@
 /out
 /vendor/opengapps/
 device/rockchip/rk356x/rk3568_r/security/
+
+# ---------------------------------------------------------------------------
+# vision (KangRuiXin / IOT-3568A) 本地构建产物与留档 —— 不入库
+# ---------------------------------------------------------------------------
+# GitHub 单文件 100MB 上限的超大 oversize 包（P1 基线，2.3GB）
+/github_oversize_files/
+# 各次构建日志（build11.log/build11b.log/build11c.log 等）
+/build*.log
+# 源码改动的本地留档备份（.orig-rosetta / .bak-pre32fix / BoardConfig.mk.orig 等）
+*.orig-rosetta
+*.bak-pre32fix
+*.bak-dts
+*.bak-2026102*
+*.ourbuild-20261021.bak
+*.factory-20261021.bak
+*.ddr4-bak
+build.sh.orig
+# mkupdate 前的工厂件快照（4.9MB 镜像副本，需要时从 firmware/ 仓库取）
+/RKTools/linux/Linux_Pack_Firmware/rockdev/build11-pre-mkimage/
