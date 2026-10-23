@@ -1,3 +1,12 @@
+# 2026-10-23 (OTG fix): board OTG port = dwc3@fcc00000 (dr_mode=otg + extcon).
+# Without this prop, AOSP init.usb.configfs.rc fails with
+# "property 'sys.usb.controller' doesn't exist" when writing
+# /config/usb_gadget/g1/UDC -> adb gadget never binds a UDC -> no adb.
+# RK upstream sets it only in recovery rc; rk3326/rk3399 do it in their own
+# init.rkXXXX.usb.rc. early-fs so it lands before any sys.usb.config action.
+on early-fs
+    setprop sys.usb.controller "fcc00000.dwc3"
+
 on property:sys.boot_completed=1
     chown system system /sys/class/devfreq/ff400000.gpu/governor
     chown system system /sys/class/devfreq/ff400000.gpu/min_freq
