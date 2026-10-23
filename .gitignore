@@ -37,3 +37,6 @@ device/rockchip/rk356x/rk3568_r/security/
 build.sh.orig
 # mkupdate 前的工厂件快照（4.9MB 镜像副本，需要时从 firmware/ 仓库取）
 /RKTools/linux/Linux_Pack_Firmware/rockdev/build11-pre-mkimage/
+
+# BoardConfig.mk 切档前的原版留档
+device/rockchip/rk356x/rk3568_r/BoardConfig.mk.orig
