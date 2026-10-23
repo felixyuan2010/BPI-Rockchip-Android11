@@ -804,7 +804,7 @@ CONFIG_LEDS_TRIGGER_HEARTBEAT=y
 CONFIG_LEDS_TRIGGER_BACKLIGHT=y
 CONFIG_LEDS_TRIGGER_DEFAULT_ON=y
 CONFIG_RTC_CLASS=y
-CONFIG_RTC_DRV_RK808=y
+# CONFIG_RTC_DRV_RK808 is not set  # 2026-10-21: 对齐 SMDT 20260310 实机 config（其显式关闭 PMIC RTC，rtc0 用外部 PCF8563）
 CONFIG_DMADEVICES=y
 CONFIG_PL330_DMA=y
 CONFIG_SW_SYNC=y
@@ -945,3 +945,35 @@ CONFIG_WLAN_VENDOR_REALTEK=y
 CONFIG_RTL8723DS=y
 CONFIG_MMC_PWRSEQ_SIMPLE=y
 CONFIG_BT_RTKBTUSB=y
+
+#
+# 3568A 板级驱动补齐 —— 对齐 SMDT 20260310 实机 kernel-config（2026-10-21 增补）
+# 依据（两侧内核同为 Linux 4.19.232，config 可直接对比）：
+#   - 产品 dtb rk3568-iot3568a.dts 物理器件节点：can@fe580000(okay,rockchip,canfd-1.0)、
+#     at24c16@50(okay,eeprom,at24c16)、rtc@51(nxp,pcf8563)
+#   - SMDT 实机 config.gz 中本 defconfig 缺失的符号
+#   - NTFS / USB 串口：SMDT 实机启用（外存与 USB 适配器），无 dtb 绑定
+# 说明：RTC_HCTOSYS / RTC_SYSTOHC(rtc0) 由 olddefconfig 默认补齐，无需显式写；
+#       RTC_DRV_RK808 按 SMDT 实机显式关闭（见上方注释行）。
+#
+# CAN / CAN-FD（RK3568 can1 @ fe580000，baudclk 100MHz，另两路 can 在 dtb 中 disabled）
+CONFIG_CAN=y
+CONFIG_CAN_DEV=y
+CONFIG_CAN_CALC_BITTIMING=y
+CONFIG_CAN_RAW=y
+CONFIG_CAN_BCM=y
+CONFIG_CAN_GW=y
+CONFIG_CAN_ROCKCHIP=y
+CONFIG_CANFD_ROCKCHIP=y
+# EEPROM（at24c16 @ i2c 0x50，dtb status=okay）
+CONFIG_EEPROM_AT24=y
+# NTFS 只读 + 读写（SD / USB 外存挂载）
+CONFIG_NTFS_FS=y
+CONFIG_NTFS_RW=y
+# USB 串口适配器（CH341 / CP210x / FTDI / PL2303）
+CONFIG_USB_SERIAL_CH341=y
+CONFIG_USB_SERIAL_CP210X=y
+CONFIG_USB_SERIAL_FTDI_SIO=y
+CONFIG_USB_SERIAL_PL2303=y
+# 外部 RTC PCF8563（rtc@51 @ i2c 0x51，电池备份，SMDT 实机 rtc0）
+CONFIG_RTC_DRV_PCF8563=y
