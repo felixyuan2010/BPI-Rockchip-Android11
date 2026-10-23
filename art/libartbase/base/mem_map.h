@@ -44,8 +44,21 @@ namespace art {
 // ArtMethod::SetNativePointer with a dchecked_integral_cast failure. The
 // linear-scan low-4GB allocator (aarch64 path) is plain mmap-with-hint plus a
 // <4GB result check, which works on any 64-bit host, so enable it on x86_64 too.
-// Host-only change: device builds (aarch64/arm) are unaffected.
+// !! 2026-10-22 修正 (Build11) !! 本 #else 分支同时覆盖 32 位 arm 设备构建
+// (app_process32 非 __LP64__)，原「device builds are unaffected」判断是错的。
+// 整块置 1 会让 32 位 LOS(LargeObjectSpace) 的 mmap 改走线性扫描低 4GB 分配器，
+// 在 rk3568 上稳定失败:
+//   Check failed: mem_map.IsValid() Failed to allocate large object space mem map:
+//   Failed anonymous mmap(0x0, 536870912, 0x3, 0x22, -1, 0): Out of memory.
+// -> zygote_secondary SIGABRT -> init.zygote64_32.rc "onrestart restart zygote"
+// 连坐 -> framework 每 ~5s 重启 -> 卡 logo（Build10 实测，tombstone_36 为证）。
+// 规则: 仅 64 位 x86_64 构建宿主机（Rosetta 修复所需）置 1；其余目标
+// （32 位 arm 设备 / 32 位 x86 / Fuchsia）一律回上游默认 0 = 普通 mmap。
+#if defined(__x86_64__) && defined(__LP64__) && !defined(__Fuchsia__)
 #define USE_ART_LOW_4G_ALLOCATOR 1
+#else
+#define USE_ART_LOW_4G_ALLOCATOR 0
+#endif
 #endif
 
 #ifdef __linux__

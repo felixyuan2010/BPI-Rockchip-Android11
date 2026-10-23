@@ -53,3 +53,17 @@ PRODUCT_PROPERTY_OVERRIDES += ro.sf.lcd_density=320
 PRODUCT_PROPERTY_OVERRIDES += ro.wifi.sleep.power.down=true
 PRODUCT_PROPERTY_OVERRIDES += persist.wifi.sleep.delay.ms=0
 PRODUCT_PROPERTY_OVERRIDES += persist.bt.power.down=true
+
+# ----------------------------------------------------------------------------
+# Build10 (2026-10-22): /data as plaintext ext4, no FBE/FDE.
+# Root cause (docs/41): a differently-signed firmware had formatted /data with
+# its own keymaster/weaver key; our vold could not unwrap it
+# (cryptfs mountFstab /data Failed @8.0s) -> credstore crash loop ->
+# system_server never starts -> boot stuck at Android logo. Removing the
+# encryption flag from the fstab eliminates that dependency entirely.
+# Scoped to rk3568_r only via a dedicated fstab template + fs-type override,
+# leaving the shared fstab.in (f2fs+FBE) untouched for sibling targets.
+PRODUCT_FSTAB_TEMPLATE := device/rockchip/rk356x/rk3568_r/fstab.rk3568_r.in
+BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE := ext4
+TARGET_USERIMAGES_USE_F2FS := false
+# ----------------------------------------------------------------------------
