@@ -3942,6 +3942,7 @@
 			max-x = <0x780>;
 			max-y = <0x438>;
 			tp-size = <0x00>;
+			rotation = <1>;
 			phandle = <0x1d5>;
 		};
 

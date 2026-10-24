@@ -38,3 +38,9 @@ BOARD_HS_ETHERNET := true
 # uncompressed blew recovery ramdisk to 66MB -> recovery.img 97.5MB > 96MB
 # partition limit). Reference: bananapi_r2pro / rk356x_box both set false.
 TARGET_ROCKCHIP_PCBATEST := false
+
+# 2026-10-24: rotate primary display to 270deg (user request: "主屏显示先尝试
+# 旋转270度"). The touch panel is physically mounted 90deg off vs the panel; the
+# GT9XX driver rotation=<1> in the gt1x DTS node handles the touch-axis swap,
+# while SurfaceFlinger also rotates touch input by this amount.
+SF_PRIMARY_DISPLAY_ORIENTATION := 270
