@@ -667,6 +667,25 @@ static void goodix_ts_work_func(struct work_struct *work)
 
     finger = point_data[GTP_ADDR_LENGTH];
 
+#if GTP_TOUCH_WAKEUP
+    if (ts->gtp_is_suspend && finger > 0)
+    {
+        GTP_INFO("Touch wakeup: light up the screen.");
+        input_report_key(ts->input_dev, KEY_POWER, 1);
+        input_sync(ts->input_dev);
+        input_report_key(ts->input_dev, KEY_POWER, 0);
+        input_sync(ts->input_dev);
+        ts->gtp_is_suspend = 0;
+        /* drop the 0x814E read-ready flag like the normal path does */
+        gtp_i2c_write(ts->client, end_cmd, 3);
+        if (ts->use_irq)
+        {
+            gtp_irq_enable(ts);
+        }
+        return;
+    }
+#endif
+
 #if GTP_COMPATIBLE_MODE
     // GT9XXF reques event
     if ((finger == 0x00) && (CHIP_TYPE_GT9F == ts->chip_type))     // request arrived
@@ -1855,7 +1874,7 @@ static s8 gtp_request_input_dev(struct goodix_ts_data *ts)
     }
 #endif
 
-#if GTP_GESTURE_WAKEUP
+#if GTP_GESTURE_WAKEUP || GTP_TOUCH_WAKEUP
     input_set_capability(ts->input_dev, EV_KEY, KEY_POWER);
 #endif
 
@@ -2600,7 +2619,7 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
     if (ts->use_irq)
     {
         gtp_irq_enable(ts);
-#if GTP_GESTURE_WAKEUP
+#if GTP_GESTURE_WAKEUP || GTP_TOUCH_WAKEUP
 	enable_irq_wake(client->irq);
 #endif
     }
@@ -2717,6 +2736,19 @@ static void goodix_ts_suspend(struct goodix_ts_data *ts)
 
 #if GTP_GESTURE_WAKEUP
     ret = gtp_enter_doze(ts);
+#elif GTP_TOUCH_WAKEUP
+    /* Keep the controller in normal scanning mode instead of chip-side doze.
+     * This module's flash config carries no gesture table, so doze leaves INT
+     * stuck low and 0x814B never holds a gesture code (measured on build19:
+     * 180x "GTP send gesture cmd failed", i2c timeouts, suspend aborted by
+     * IRQ 112). Instead we keep scanning and let the ISR turn any touch into
+     * KEY_POWER, which PhoneWindowManager handles as a wake key. */
+    if (ts->use_irq)
+    {
+        gtp_irq_enable(ts);
+    }
+    GTP_INFO("Keep touch scanning for touch-to-wake.");
+    ret = 0;
 #else
     if (ts->use_irq)
     {
@@ -2754,7 +2786,11 @@ static void goodix_ts_resume(struct goodix_ts_data *ts)
     }
     GTP_INFO("System resume.");
 
+#if GTP_TOUCH_WAKEUP
+    ret = 1;    /* controller never slept, nothing to wake up */
+#else
     ret = gtp_wakeup_sleep(ts);
+#endif
 #if GTP_GESTURE_WAKEUP
     doze_status = DOZE_DISABLED;
 #endif
