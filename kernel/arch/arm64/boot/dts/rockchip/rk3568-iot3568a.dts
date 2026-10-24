@@ -958,7 +958,13 @@
 			compatible = "snps,dwc3";
 			reg = <0x00 0xfcc00000 0x00 0x400000>;
 			interrupts = <0x00 0xa9 0x04>;
-			dr_mode = "otg";
+			/* OTG port ID reads grounded on this board (host-only wiring,
+			 * identical on factory fw) -> extcon keeps dwc3 in host mode and
+			 * no UDC is ever registered (configfs UDC write = ENODEV).
+			 * Force peripheral so the gadget/adb path works; the two
+			 * dedicated host ports (dwc3@fd000000 + ehci/ohci) are unaffected.
+			 */
+			dr_mode = "peripheral";
 			phys = <0x24 0x20 0x04>;
 			phy-names = "usb2-phy\0usb3-phy";
 			phy_type = "utmi_wide";
