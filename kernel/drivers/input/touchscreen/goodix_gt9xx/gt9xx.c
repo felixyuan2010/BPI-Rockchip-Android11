@@ -1175,7 +1175,7 @@ static s8 gtp_enter_doze(struct goodix_ts_data *ts)
     GTP_ERROR("GTP send gesture cmd failed.");
     return ret;
 }
-#else
+#elif !GTP_TOUCH_WAKEUP
 /*******************************************************
 Function:
     Enter sleep mode.
@@ -1236,6 +1236,8 @@ static s8 gtp_enter_sleep(struct goodix_ts_data * ts)
     return ret;
 }
 #endif
+
+#if !GTP_TOUCH_WAKEUP    /* GTP_TOUCH_WAKEUP keeps the controller awake, so nothing wakes it up */
 /*******************************************************
 Function:
     Wakeup from sleep.
@@ -1358,6 +1360,7 @@ static s8 gtp_wakeup_sleep(struct goodix_ts_data * ts)
     GTP_ERROR("GTP wakeup sleep failed.");
     return ret;
 }
+#endif /* !GTP_TOUCH_WAKEUP */
 
 /*******************************************************
 Function:
