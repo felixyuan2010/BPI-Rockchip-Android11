@@ -22,9 +22,13 @@ allow mcu_notify mcu_i2c_device:chr_file { getattr open read write ioctl map };
 
 # stdio_to_kmsg redirects stdout/stderr to /dev/kmsg_debug (init opens it in
 # the child, i.e. after the domain transition, so the allow must be here).
-allow mcu_notify kmsg_debug_device:chr_file w_file_perms;
+# NOTE: w_file_perms is { open append write } and does NOT contain getattr, but
+# open() needs it -- build24 shipped without getattr and the resulting
+#     avc: denied { getattr } for comm="mcu_smdt" path="/dev/kmsg_debug"
+# made open() fail so init silently fell back to /dev/null (no logs at all).
+allow mcu_notify kmsg_debug_device:chr_file { getattr open write append };
 # Defensive: some init versions fall back to /dev/kmsg.
-allow mcu_notify kmsg_device:chr_file w_file_perms;
+allow mcu_notify kmsg_device:chr_file { getattr open write append };
 
 # Nothing else is attempted; do not spam the audit log with the denials the
 # kernel generates for the attributes we intentionally do not need.
