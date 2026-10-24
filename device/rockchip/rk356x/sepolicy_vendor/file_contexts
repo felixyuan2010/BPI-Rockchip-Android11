@@ -2,3 +2,9 @@
 
 #rknn_server
 /vendor/bin/rknn_server u:object_r:rknn_server_exec:s0
+
+#mcu_notify (Build24) — SMDT PMU MCU watchdog keeper. See mcu_notify.te.
+/vendor/bin/mcu_smdt u:object_r:mcu_notify_exec:s0
+# i2c bus 5 is the PMU MCU (STM8S00K3 @ 0x62). It needs a dedicated type
+# because domain.te neverallows { open read write } on the generic "device".
+/dev/i2c-5 u:object_r:mcu_i2c_device:s0

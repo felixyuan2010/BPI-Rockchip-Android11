@@ -67,3 +67,21 @@ PRODUCT_FSTAB_TEMPLATE := device/rockchip/rk356x/rk3568_r/fstab.rk3568_r.in
 BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE := ext4
 TARGET_USERIMAGES_USE_F2FS := false
 # ----------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------
+# Build24 (2026-10-24): stop the PMU MCU from cutting power ~620 s after boot.
+#
+# docs/45: the STM8S00K3 on i2c-5/0x62 powers the SoC off unless it gets
+# notify_power_on (ioctl 0xAA) plus a 1 Hz watchdog feed (ioctl 0xA3). The
+# factory implements this in drivers/smdt/mcuinf.c; that driver is missing from
+# this kernel tree (the DTS node mcuinf@62 exists, so /dev/McuCom never shows
+# up and the factory mcu_notify_service cannot run). mcu_smdt reissues the same
+# I2C transfers from userspace and is started by mcu_notify.rc.
+#
+# Keeps the hardware watchdog armed (0x32=1) instead of disabling it, so the
+# only recovery layer that does not depend on the SoC still running — the MCU
+# cutting power — remains intact.
+PRODUCT_PACKAGES += mcu_smdt
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/mcu_notify.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/mcu_notify.rc
+# ----------------------------------------------------------------------------

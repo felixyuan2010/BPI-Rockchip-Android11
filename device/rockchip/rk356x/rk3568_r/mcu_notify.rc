@@ -1,0 +1,26 @@
+# 2026-10-24 (Build24): keep the SMDT PMU MCU watchdog alive — docs/45.
+#
+# Background: this board's PMU MCU powers the SoC off roughly 620 s after
+# power-on unless it is told that boot finished AND is fed once per second.
+# The factory kernel does that in drivers/smdt/mcuinf.c (probe writes
+# 0x32=1, the init trigger runs `mcu_tool notify_power_on`, and the
+# mcu_run_thread kthread feeds every 1000 ms). Our kernel tree has the DTS node
+# mcuinf@62 but no driver, hence no /dev/McuCom. mcu_smdt reproduces the exact
+# same three I2C transfers from userspace.
+#
+# Deliberately NOT oneshot: if the feeder ever dies, init must bring it back.
+# An armed-but-unfed watchdog reboots the board about 155 s later (measured),
+# and that restart loop has to be self-healing.
+#
+# Also note: the watchdog-enable bit (0x32) is retained across power loss in the
+# MCU, so --daemon re-asserts 0x32=1 on every boot. Without that the hardware
+# recovery layer would stay silently disabled (docs/45 §25).
+
+service mcu_notify /vendor/bin/mcu_smdt --daemon --ms 1000
+    class main
+    user root
+    stdio_to_kmsg
+    disabled
+
+on property:sys.boot_completed=1
+    start mcu_notify

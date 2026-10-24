@@ -1,0 +1,32 @@
+# 2026-10-24 (Build24): SELinux domain for the userspace SMDT MCU watchdog
+# keeper. See docs/45 (MCU 620 s power-off) and mcu_notify.rc.
+#
+# Scope: exactly one job — open /dev/i2c-5, then write the three frames the
+# factory driver issues (0x32<-1 arming, 0x51<-0x33 notify, 0x33<-0xAB feed).
+# No network, no property writes, no filesystem writes.
+
+type mcu_notify, domain;
+type mcu_notify_exec, exec_type, vendor_file_type, file_type;
+
+# /dev/i2c-5 cannot keep the generic "device" label: system/sepolicy/public/
+# domain.te has
+#     neverallow domain device:chr_file { open read write };
+# so no non-init domain can ever be granted access to a "device"-labelled node.
+# Give the MCU bus its own type instead (labelled in file_contexts).
+type mcu_i2c_device, dev_type;
+
+init_daemon_domain(mcu_notify)
+
+# i2c@fe5e0000 == bus 5; the PMU MCU sits at 0x62 on it.
+allow mcu_notify mcu_i2c_device:chr_file { getattr open read write ioctl map };
+
+# stdio_to_kmsg redirects stdout/stderr to /dev/kmsg_debug (init opens it in
+# the child, i.e. after the domain transition, so the allow must be here).
+allow mcu_notify kmsg_debug_device:chr_file w_file_perms;
+# Defensive: some init versions fall back to /dev/kmsg.
+allow mcu_notify kmsg_device:chr_file w_file_perms;
+
+# Nothing else is attempted; do not spam the audit log with the denials the
+# kernel generates for the attributes we intentionally do not need.
+dontaudit mcu_notify mcu_i2c_device:chr_file { append link rename setattr unlink };
+dontaudit mcu_notify self:capability dac_override;
