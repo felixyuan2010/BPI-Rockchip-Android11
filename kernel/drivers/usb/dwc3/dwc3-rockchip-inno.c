@@ -61,8 +61,17 @@ static void u3phy_disconnect_det_work(struct work_struct *work)
 {
 	struct dwc3_rockchip *rockchip =
 		container_of(work, struct dwc3_rockchip, u3_work);
-	struct usb_hcd	*hcd = dev_get_drvdata(&rockchip->dwc->xhci->dev);
+	struct usb_hcd	*hcd;
 	u32		count = 0;
+
+	/*
+	 * With dr_mode="peripheral", dwc->xhci is NULL (no host controller);
+	 * this work only re-inits the host on USB3 PHY disconnect events.
+	 */
+	if (!rockchip->dwc->xhci)
+		return;
+
+	hcd = dev_get_drvdata(&rockchip->dwc->xhci->dev);
 
 	mutex_lock(&rockchip->lock);
 
@@ -162,8 +171,16 @@ static int dwc3_rockchip_probe(struct platform_device *pdev)
 		goto err2;
 	}
 
+	/*
+	 * With dr_mode="peripheral", dwc3_gadget_init() registers the UDC but
+	 * never creates dwc->xhci (that is dwc3_host_init()'s job), so a NULL
+	 * xhci is the normal shape in gadget mode. Requiring it here made the
+	 * glue probe defer forever while err2 depopulate/repopulate tore the
+	 * child device down in a tight loop (dwc3 probe storm). Only wait for
+	 * the dwc struct itself.
+	 */
 	rockchip->dwc = platform_get_drvdata(child_pdev);
-	if (!rockchip->dwc || !rockchip->dwc->xhci) {
+	if (!rockchip->dwc) {
 		dev_dbg(dev, "failed to get drvdata dwc3\n");
 		ret = -EPROBE_DEFER;
 		goto err2;
