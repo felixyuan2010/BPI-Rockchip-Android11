@@ -3942,7 +3942,13 @@
 			max-x = <0x780>;
 			max-y = <0x438>;
 			tp-size = <0x00>;
-			rotation = <1>;
+			/* 2026-10-24 (build18b): touch X was mirrored with rotation=<1> (a
+			 * reflection, det -1, that combined with the framework's 270deg
+			 * display rotation gave a left<->right mirror). rotation=<4> is the
+			 * driver's proper 90deg rotation (swap + flip X, det +1) for an
+			 * 800x1280 panel (matches the module flash config) and clears the
+			 * mirror. */
+			rotation = <4>;
 			phandle = <0x1d5>;
 		};
 
