@@ -1628,6 +1628,7 @@
 				spk-volume = <0x03>;
 				spk-ctl-gpios = <0x41 0x13 0x01>;
 				mic-in-differential;
+				rockchip,use-ext-amplifier = <1>;
 				status = "okay";
 				phandle = <0x13f>;
 			};
