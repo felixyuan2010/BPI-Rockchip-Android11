@@ -3830,7 +3830,7 @@
 		#sound-dai-cells = <0x00>;
 		rockchip,sample-width-bits = <0x0b>;
 		rockchip,interpolat-points = <0x01>;
-		status = "disabled";
+		status = "okay";
 		phandle = <0x1cf>;
 	};
 
@@ -5957,6 +5957,27 @@
 			sound-dai = <0x13a>;
 			phandle = <0x138>;
 		};
+	};
+
+	buzzer_sound: buzzer-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,name = "rockchip,buzzer";
+
+		simple_audio_card_cpu_buzzer: simple-audio-card,cpu {
+			sound-dai = <&audpwm>;
+		};
+
+		simple_audio_card_codec_buzzer: simple-audio-card,codec {
+			sound-dai = <&buzzer_dummy>;
+		};
+	};
+
+	buzzer_dummy: buzzer-dummy-codec {
+		status = "okay";
+		compatible = "rockchip,dummy-codec";
+		#sound-dai-cells = <0x00>;
 	};
 
 	backlight_2: backlight {
