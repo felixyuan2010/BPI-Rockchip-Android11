@@ -2721,14 +2721,14 @@
 				dsi0_in_vp0: endpoint@0 {
 					reg = <0x00>;
 					remote-endpoint = <&vp0_out_dsi0>;
-					status = "disabled";
+					status = "okay";
 					phandle = <0x88>;
 				};
 
 				dsi0_in_vp1: endpoint@1 {
 					reg = <0x01>;
 					remote-endpoint = <&vp1_out_dsi0>;
-					status = "okay";
+					status = "disabled";
 					phandle = <0x8c>;
 				};
 			};
@@ -2999,7 +2999,7 @@
 		phys = <0xa4>;
 		phy-names = "dp";
 		power-domains = <0x21 0x09>;
-		status = "disabled";
+		status = "okay";
 		force-hpd;
 		phandle = <0x1b8>;
 
@@ -3016,14 +3016,14 @@
 				edp_in_vp0: endpoint@0 {
 					reg = <0x00>;
 					remote-endpoint = <&vp0_out_edp>;
-					status = "okay";
+					status = "disabled";
 					phandle = <0x8a>;
 				};
 
 				edp_in_vp1: endpoint@1 {
 					reg = <0x01>;
 					remote-endpoint = <&vp1_out_edp>;
-					status = "disabled";
+					status = "okay";
 					phandle = <0x8e>;
 				};
 			};
