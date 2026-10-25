@@ -2582,6 +2582,16 @@
 				#size-cells = <0x00>;
 				reg = <0x00>;
 				phandle = <0x1ac>;
+				/*
+				 * RK3568 VOP2 plane assign (rk356x_vp_plane_mask two-display policy):
+				 * vp0(main/dsi0) = CLUSTER0+ESMART0+SMART0 = 0x15, primary SMART0=4
+				 * 2026-10-25: 内核 4.19 dtsi 无此属性，原依赖 U-Boot vop2_fixup_dts 运行时
+				 * patch；clean uboot（控制 fdt 显示路由未配）不会 patch -> vp mask=0
+				 * -> Smart1-win0 invisible 黑屏。此处显式声明，两条链路均安全
+				 * (U-Boot assign_plane 路径读同值 fixup，行为不变)。
+				 */
+				rockchip,plane-mask = <0x15>;
+				rockchip,primary-plane = <4>;
 
 				vp0_out_dsi0: endpoint@0 {
 					reg = <0x00>;
@@ -2613,6 +2623,9 @@
 				#size-cells = <0x00>;
 				reg = <0x01>;
 				phandle = <0x1ad>;
+				/* vp1(second/edp) = CLUSTER1+ESMART1+SMART1 = 0x2a, primary SMART1=5 */
+				rockchip,plane-mask = <0x2a>;
+				rockchip,primary-plane = <5>;
 
 				vp1_out_dsi0: endpoint@0 {
 					reg = <0x00>;
