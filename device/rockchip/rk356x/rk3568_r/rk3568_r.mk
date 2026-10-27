@@ -72,7 +72,21 @@ PRODUCT_PROPERTY_OVERRIDES += persist.bt.power.down=true
 #
 # bananapi_r2pro sets this; rk3568_r did not, which is why only this product
 # showed the symptom.
-PRODUCT_PROPERTY_OVERRIDES += ro.net.eth_primary=eth0
+#
+# 2026-10-27 (build33 -> build34): this MUST NOT be a PRODUCT_PROPERTY_OVERRIDES
+# entry. BoardConfig.mk:140 sets BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED ?= true,
+# and with a real vendor partition main.mk:161-166 then routes
+# PRODUCT_PROPERTY_OVERRIDES into /vendor/build.prop instead of /system/build.prop.
+# /vendor/build.prop is loaded by vendor_init, which has no read access to
+# default_prop, so "ro.net.eth_primary" is silently DROPPED at boot:
+#   dmesg: avc: denied { read } ... scontext=u:r:vendor_init:s0 \
+#                              tcontext=u:object_r:default_prop:s0
+# Verified on device (build33): /vendor/build.prop:116 contains the line,
+#   getprop ro.net.eth_primary -> empty.
+# The property now lives in ./system.prop (same directory), which
+# build/make/core/Makefile:429 auto-appends to /system/build.prop (loaded by
+# init, full access) -- the same mechanism bananapi_r2pro_box uses.
+# Do not move it back here.
 # ----------------------------------------------------------------------------
 
 # ----------------------------------------------------------------------------

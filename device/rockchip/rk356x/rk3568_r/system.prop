@@ -1,0 +1,31 @@
+#
+# system.prop — rk3568_r
+#
+# 这个文件会被 build/make/core/Makefile:429 自动 append 进 /system/build.prop
+# （机制：system_prop_file := $(wildcard $(TARGET_DEVICE_DIR)/system.prop)）。
+# 由 init 在 first stage 加载，域为 init，对 default_prop 有完整读写权限。
+#
+# ⚠️ 与 rk3568_r.mk 里 PRODUCT_PROPERTY_OVERRIDES 的区别（2026-10-27 实测）：
+#   本树 BoardConfig.mk:140 设了 BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED ?= true，
+#   且存在独立 vendor 分区，于是 main.mk:161-166 把 PRODUCT_PROPERTY_OVERRIDES
+#   改投 /vendor/build.prop。vendor/build.prop 由 vendor_init 加载，而 vendor_init
+#   对 default_prop 没有 read 权限（dmesg 满屏 avc denied），结果：
+#     - 行确实写进了 /vendor/build.prop
+#     - getprop 却是空
+#   即"属性写了但没生效，且不报错"。任何 system 命名空间的 ro.* 属性都别放那边。
+#
+
+# ---------------------------------------------------------------------------
+# 以太网（docs/53 §八）：告诉 Rockchip 补丁版的 EthernetTracker 哪个网卡是主口。
+#
+# frameworks/base EthernetTracker.updateIfaceMatchRegexp() 先读本属性：
+#     mIfaceMatch = SystemProperties.get("ro.net.eth_primary", null);
+#     if (mIfaceMatch == null) { mIfaceMatch = <资源里的 eth\d>; }
+# SystemProperties.get(key, null) 对**未定义**属性返回 ""（不是 null，
+# android_os_SystemProperties.cpp 注释 "Legacy behavior"），所以兜底永不执行，
+# mIfaceMatch 停在 ""，"eth0".matches("") 为 false → 一张网卡都不跟踪 →
+# getAvailableInterfaces() 空 → Settings 的 EthernetSettings 走 mIfaceName == null
+# 分支，弹 R.string.disabled_feature（"feature not available"）——
+# 即使 EthernetService 本身已经在运行。
+# ---------------------------------------------------------------------------
+ro.net.eth_primary=eth0
