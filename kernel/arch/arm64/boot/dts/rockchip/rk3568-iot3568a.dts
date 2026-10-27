@@ -3564,6 +3564,7 @@
 		disable-wp;
 		cap-sd-highspeed;
 		cap-sdio-irq;
+		keep-power-in-suspend;
 		mmc-pwrseq = <0xa7>;
 		non-removable;
 		pinctrl-names = "default";

@@ -126,7 +126,7 @@ CONFIG_PNO_SUPPORT = n
 CONFIG_PNO_SET_DEBUG = n
 CONFIG_AP_WOWLAN = n
 ######### Notify SDIO Host Keep Power During Syspend ##########
-CONFIG_RTW_SDIO_PM_KEEP_POWER = n
+CONFIG_RTW_SDIO_PM_KEEP_POWER = y
 ###################### MP HW TX MODE FOR VHT #######################
 CONFIG_MP_VHT_HW_TX_MODE = n
 ###################### Platform Related #######################
@@ -1154,7 +1154,7 @@ EXTRA_CFLAGS += -DRTW_SUSPEND_TYPE=$(CONFIG_SUSPEND_TYPE)
 ifeq ($(CONFIG_WOW_STA_MIX), y)
 EXTRA_CFLAGS += -DRTW_WOW_STA_MIX
 endif
-ifeq ($(CONFIG_SDIO_HCI)$(CONFIG_RTW_SDIO_PM_KEEP_POWER), yy)
+ifeq ($(CONFIG_SDIO_HCI), y)
 EXTRA_CFLAGS += -DCONFIG_RTW_SDIO_PM_KEEP_POWER
 endif
 endif
