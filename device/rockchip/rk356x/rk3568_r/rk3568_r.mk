@@ -85,3 +85,21 @@ PRODUCT_PACKAGES += mcu_smdt
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/mcu_notify.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/mcu_notify.rc
 # ----------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------
+# 2026-10-27 (docs/53): expose the ethernet framework capability.
+#
+# The image currently declares neither android.hardware.ethernet nor
+# android.hardware.usb.host, so SystemServer.startEthernet() is skipped
+# (SystemServer.java:1533 gate), EthernetService never starts, EthernetManager
+# comes back null and Settings' Ethernet page dies with "feature not
+# available"; eth0 is also never brought up by the framework.
+#
+# ethernet-service itself is ALREADY in PRODUCT_PACKAGES and
+# PRODUCT_SYSTEM_SERVER_JARS via the inherited product config (verified with
+# get_build_var PRODUCT_SYSTEM_SERVER_JARS / PRODUCT_PACKAGES), so the missing
+# piece is only this permission declaration. Declaring usb.host is NOT needed
+# for this and is deliberately left alone (it would also change USB behaviour).
+PRODUCT_COPY_FILES += \
+    frameworks/native/data/etc/android.hardware.ethernet.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/permissions/android.hardware.ethernet.xml
+# ----------------------------------------------------------------------------

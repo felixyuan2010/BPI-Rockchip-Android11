@@ -1628,7 +1628,13 @@
 				spk-volume = <0x03>;
 				spk-ctl-gpios = <0x41 0x13 0x01>;
 				mic-in-differential;
-				rockchip,use-ext-amplifier = <1>;
+				/* 2026-10-27 (docs/54): rk817_codec.c reads the UNPREFIXED
+				 * bool "use-ext-amplifier" via of_property_read_bool(); the
+				 * previous "rockchip,use-ext-amplifier = <1>" was never read,
+				 * so the external amplifier stayed off and playback was silent
+				 * (codec fell back to its internal Class-D path).
+				 */
+				use-ext-amplifier;
 				status = "okay";
 				phandle = <0x13f>;
 			};
