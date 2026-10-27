@@ -1,0 +1,2 @@
+/dev/ttyS3    u:object_r:vendor_vision_uart_device:s0
+/dev/ttyS7    u:object_r:vendor_vision_uart_device:s0

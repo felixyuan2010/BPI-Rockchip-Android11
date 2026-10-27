@@ -138,3 +138,9 @@ PRODUCT_COPY_FILES += \
 PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.hardware.ethernet.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/permissions/android.hardware.ethernet.xml
 # ----------------------------------------------------------------------------
+
+# P6: grant the platform App access to exactly the two product UARTs.
+# Kept separate from mcu_notify.rc: no MCU/watchdog lifecycle changes.
+BOARD_SEPOLICY_DIRS += device/rockchip/rk356x/rk3568_r/sepolicy_vision
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/vision_uart.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/vision_uart.rc

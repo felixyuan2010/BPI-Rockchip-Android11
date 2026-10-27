@@ -1,0 +1,5 @@
+# P6: two business UARTs; do not grant access to generic serial_device.
+# App MCS categories differ from /dev nodes at s0. This object exception
+# permits writes without marking the entire App as mlstrustedsubject.
+type vendor_vision_uart_device, dev_type, mlstrustedobject;
+allow platform_app vendor_vision_uart_device:chr_file { getattr open read write ioctl };
