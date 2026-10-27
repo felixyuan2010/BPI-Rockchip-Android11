@@ -7013,3 +7013,25 @@
 		shimetaos_property = "/shimetaos_property";
 	};
 };
+
+/* Product USB-A VBUS enables (P6, 2026-10-27).
+ * The factory smdtio driver set GPIO0_A5/A6 high. That driver is absent here;
+ * the fixed vcc5v0_host regulator has no GPIO and cannot drive these switches.
+ * Restore the factory always-on defaults with standard GPIO hogs, independent
+ * of U-Boot, the training APK, and the deferred DeviceAgent power policy.
+ */
+&gpio0 {
+    usb-port0-power-hog {
+        gpio-hog;
+        gpios = <5 0>;
+        output-high;
+        line-name = "usb-port0-power";
+    };
+
+    usb-port1-power-hog {
+        gpio-hog;
+        gpios = <6 0>;
+        output-high;
+        line-name = "usb-port1-power";
+    };
+};
