@@ -55,6 +55,27 @@ PRODUCT_PROPERTY_OVERRIDES += persist.wifi.sleep.delay.ms=0
 PRODUCT_PROPERTY_OVERRIDES += persist.bt.power.down=true
 
 # ----------------------------------------------------------------------------
+# 2026-10-27 (docs/53 §八): tell EthernetTracker which interface is primary.
+#
+# Rockchip patched EthernetTracker.updateIfaceMatchRegexp() to read this
+# property first:
+#     mIfaceMatch = SystemProperties.get("ro.net.eth_primary", null);
+#     if (mIfaceMatch == null) { mIfaceMatch = match; }   // "eth\d" from resources
+# SystemProperties.get(key, null) returns "" (not null) for an UNDEFINED key --
+# see frameworks/base/core/jni/android_os_SystemProperties.cpp "Legacy behavior"
+# -- so the fallback never runs and mIfaceMatch stays "". "eth0".matches("")
+# is false, therefore no interface is ever tracked: the framework never brings
+# eth0 up, never runs DHCP, and EthernetManager.getAvailableInterfaces() returns
+# empty, which makes Settings' EthernetSettings take its mIfaceName == null
+# branch and toast R.string.disabled_feature ("feature not available") -- even
+# though the EthernetService itself is running.
+#
+# bananapi_r2pro sets this; rk3568_r did not, which is why only this product
+# showed the symptom.
+PRODUCT_PROPERTY_OVERRIDES += ro.net.eth_primary=eth0
+# ----------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------
 # Build10 (2026-10-22): /data as plaintext ext4, no FBE/FDE.
 # Root cause (docs/41): a differently-signed firmware had formatted /data with
 # its own keymaster/weaver key; our vold could not unwrap it
