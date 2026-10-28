@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  构建期资源 overlay：全局隐藏 Android 导航栏（Back/Home/Recents 三键）。
+  这是 kiosk 锁屏的"系统级"路径，比 App 层 immersive-sticky 更彻底——
+  immersive 从屏幕边缘上滑仍能呼出导航，本 overlay 直接从 WindowManager
+  层面不创建导航栏。
+
+  接入方式（在 rk3568-src 设备配置里）：
+    DEVICE_PACKAGE_OVERLAYS += <本目录>/overlay
+
+  风险（见 docs/52 M5/N5）：
+    若 lockTask 因故未生效、而导航栏又被隐藏，设备上将无任何退回手段。
+    因此必须保留：① adb / 串口恢复通道（调试期）；② 隐藏工程菜单
+    （长按音量键或特定手势进入，见 IA2 调试开关）。生产机调试通道默认关。
+-->
+<resources>
+    <bool name="config_showNavigationBar">false</bool>
+</resources>

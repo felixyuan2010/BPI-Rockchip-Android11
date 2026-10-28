@@ -144,3 +144,6 @@ PRODUCT_COPY_FILES += \
 BOARD_SEPOLICY_DIRS += device/rockchip/rk356x/rk3568_r/sepolicy_vision
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/vision_uart.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/vision_uart.rc
+
+# DeviceAgent（Tier2 配置层 / Device Owner + lockTask），见 vision_app docs/52
+$(call inherit-product-if-exists, device/rockchip/rk356x/deviceagent/device.mk)

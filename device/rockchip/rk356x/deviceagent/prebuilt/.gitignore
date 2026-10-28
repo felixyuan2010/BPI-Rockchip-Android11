@@ -1,0 +1,3 @@
+# 预编译 APK 由构建管线放入（./gradlew :deviceagent:assembleRelease 后 docker cp），不入库：
+# 二进制每次构建都变，入库会让历史膨胀且不可复现。
+*.apk

@@ -1,0 +1,23 @@
+# init 服务：系统启动完成后一次性执行 DO 授权脚本。
+#
+# 为什么要走 init 而非 App 内调用 dpm：
+#   成为 DO 的窗口极短——必须在 SetupWizard / 任何用户设置之前。
+#   用 init 服务在 sys.boot_completed=1 时抢跑，比等 App 起来再处理更稳。
+#
+# 接入方式（在 rk3568-src 设备配置的 device.mk 里）：
+#   PRODUCT_COPY_FILES += \
+#       <本目录>/deviceagent_do.rc:system/etc/init/deviceagent_do.rc \
+#       <本目录>/setup_deviceagent_do.sh:system/bin/setup_deviceagent_do.sh
+#
+# 注：脚本置 0755，init 段 service 须 user root 才能调 dpm。
+
+service deviceagent_do /system/bin/sh /system/bin/setup_deviceagent_do.sh
+    class main
+    user root
+    group root
+    oneshot
+    disabled
+    seclabel u:r:su:s0
+
+on property:sys.boot_completed=1
+    start deviceagent_do
