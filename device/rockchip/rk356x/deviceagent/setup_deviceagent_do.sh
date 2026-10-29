@@ -33,6 +33,15 @@ cmd appops set com.jsy.visual WRITE_SETTINGS allow 2>/dev/null
 cmd appops set com.jsy.visual SYSTEM_ALERT_WINDOW allow 2>/dev/null
 echo "deviceagent_do: vision_app appops applied" > /dev/kmsg
 
+# 出厂默认 screen_off_timeout=60000（AOSP 默认 1 分钟）：kiosk 一分钟就熄屏，
+# 而 App 的三个预设是 15/30/60 分钟，都不会产生 60000。仅在仍是出厂默认时改成 15 分钟，
+# 用户/App 已经改过（其它值）就不动。
+_cur_timeout=$(settings get system screen_off_timeout 2>/dev/null)
+if [ "$_cur_timeout" = "60000" ]; then
+    settings put system screen_off_timeout 900000
+    echo "deviceagent_do: screen timeout default 60s -> 15min" > /dev/kmsg
+fi
+
 # 已经是本包做 DO：补写标记后退出（标记缺失多半是 /data 被保数据刷机从旧盘带来）。
 for f in $OWNER_XML; do
     if grep -q "<device-owner [^>]*package=\"$PKG\"" "$f" 2>/dev/null; then
