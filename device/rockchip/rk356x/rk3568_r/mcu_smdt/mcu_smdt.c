@@ -289,7 +289,22 @@ int main(int argc, char **argv)
     if (ms < 100) ms = 100;
 
     snprintf(path, sizeof(path), "/dev/i2c-%d", bus);
-    g_fd = open(path, O_RDWR);
+    /*
+     * 2026-10-29: 打开节点改为带等待（最多 10 s，200 ms × 50）。
+     * 当前 init 的两个调用点（boot_completed 的 --daemon、shutdown 的
+     * --set 0x32 0）节点必然已存在，但：
+     *   a) 手工/脚本在开机早期调用本工具时 /dev/i2c-5 未必就绪
+     *      （实测内核 +3.3 s 才建出来，时序不保证）；
+     *   b) 将来若把调用时机前移，不需要再动这里。
+     * 只对 ENOENT / ENODEV 重试；权限或 SELinux 这类真错误立即失败，别掩盖。
+     */
+    for (i = 0; i < 50; i++) {
+        g_fd = open(path, O_RDWR);
+        if (g_fd >= 0) break;
+        if (errno != ENOENT && errno != ENODEV) break;
+        if (i == 0) fprintf(stderr, "%s 尚未就绪，最多等待 10 s\n", path);
+        usleep(200 * 1000);
+    }
     if (g_fd < 0) {
         fprintf(stderr, "打不开 %s: %s\n", path, strerror(errno));
         return 2;

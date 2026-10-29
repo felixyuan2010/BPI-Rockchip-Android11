@@ -1,20 +1,27 @@
 # 2026-10-24 (Build24): keep the SMDT PMU MCU watchdog alive — docs/45.
+# 2026-10-29 (§31): add the missing other half — disarm it on shutdown.
 #
-# Background: this board's PMU MCU powers the SoC off roughly 620 s after
-# power-on unless it is told that boot finished AND is fed once per second.
-# The factory kernel does that in drivers/smdt/mcuinf.c (probe writes
-# 0x32=1, the init trigger runs `mcu_tool notify_power_on`, and the
-# mcu_run_thread kthread feeds every 1000 ms). Our kernel tree has the DTS node
-# mcuinf@62 but no driver, hence no /dev/McuCom. mcu_smdt reproduces the exact
-# same three I2C transfers from userspace.
+# The MCU has two independent timers (docs/45 §30, both measured on this board):
+#   1) boot-confirm: armed at power-on, ~620 s, needs no enable and no feeding.
+#      If the SoC never reports boot completion, the MCU cuts power.
+#   2) runtime watchdog: armed ONLY by notify (0x51<-0x33), ~78 s, must be fed
+#      (0x33<-0xAB) once per second.
+#
+# The factory kernel does all of this in drivers/smdt/mcuinf.c: probe writes
+# 0x32=1, the init trigger runs `mcu_tool notify_power_on`, the mcu_run_thread
+# kthread feeds every 1000 ms, and .shutdown writes 0x32=0. That driver is
+# missing from our kernel tree (the DTS node mcuinf@62 exists, so /dev/McuCom
+# never appears), hence mcu_smdt reproduces the same I2C transfers from
+# userspace.
 #
 # Deliberately NOT oneshot: if the feeder ever dies, init must bring it back.
-# An armed-but-unfed watchdog reboots the board about 155 s later (measured),
-# and that restart loop has to be self-healing.
+# An armed-but-unfed watchdog cuts power ~78 s later (measured 2026-10-29;
+# earlier notes said 155 s, which was the uptime at detection, not the window),
+# and that restart has to be self-healing.
 #
-# Also note: the watchdog-enable bit (0x32) is retained across power loss in the
-# MCU, so --daemon re-asserts 0x32=1 on every boot. Without that the hardware
-# recovery layer would stay silently disabled (docs/45 §25).
+# 0x32 is retained across power loss in the MCU, so the daemon re-asserts
+# 0x32=1 on every boot; without it the recovery layer would stay disabled
+# (docs/45 §25).
 
 service mcu_notify /vendor/bin/mcu_smdt --daemon --ms 1000
     class main
@@ -24,3 +31,19 @@ service mcu_notify /vendor/bin/mcu_smdt --daemon --ms 1000
 
 on property:sys.boot_completed=1
     start mcu_notify
+
+# 2026-10-29: shutdown handshake (docs/45 §31).
+#
+# The factory .shutdown callback writes 32=0; Build24 only implemented the
+# "arm" half, so the watchdog stayed armed through shutdown and loader:
+# `adb reboot loader` got cut ~80 s later, and a plain reboot had only ~54 s
+# of margin (docs/45 §30). This restores the symmetric half.
+#
+# `exec` is synchronous: init waits for it to exit. Shutdown takes 5.7 s end to
+# end on this board, so "disarm first, then power down" leaves a tiny window.
+#
+# Disarming only clears timer (2). Timer (1) does not depend on 0x32, so even
+# though 0x32=0 survives the power cut, a failed boot is still cut at ~620 s
+# (see docs/45 30.7).
+on shutdown
+    exec - root -- /vendor/bin/mcu_smdt --set 0x32 0
