@@ -39,3 +39,22 @@ ro.net.eth_primary=eth0
 ro.setupwizard.mode=DISABLED
 ro.adb.secure=0
 persist.adb.tcp.port=5555
+
+# ---------------------------------------------------------------------------
+# 默认时区（2026-10-29）
+#
+# AOSP 在 persist.sys.timezone 为空时由 SystemServer 强制写成 "GMT"
+# （SystemServer.java: "Timezone not set; setting to GMT."）。本产品无该属性，
+# 于是整机（含 App 的时间显示）比北京时间慢 8 小时。
+#
+# 自动时区不可依赖：TimeZoneDetectorCallbackImpl.isAutoTimeZoneDetectionSupported()
+# 只在设备有移动网络（TYPE_MOBILE）时返回 true；本机是以太网/WiFi 数据设备，
+# 即使 Settings.Global.AUTO_TIME_ZONE=1，时区检测也被判为不支持 —— 只有手动
+# 设置或本属性默认值生效。网络校时（NTP，config_ntpServer=2.android.pool.ntp.org）
+# 只同步"时刻"，不会同步时区。
+#
+# 因此在这里固化默认时区。已刷机但未清 data 的机器仍保留
+# /data/property 里的旧值（persist 属性优先），需执行一次：
+#     adb shell cmd alarm set-timezone Asia/Shanghai
+# ---------------------------------------------------------------------------
+persist.sys.timezone=Asia/Shanghai
