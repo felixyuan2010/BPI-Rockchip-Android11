@@ -24,6 +24,15 @@ ADMIN=${PKG}/.admin.AdminReceiver
 # device_owner.xml 是旧版本遗留）；读文件比解析 dumpsys 文本稳，也不依赖 shell 命令。
 OWNER_XML="/data/system/device_owner_2.xml /data/system/device_owner.xml"
 
+# vision_app 的两个 appop 在干净机 /data 上是未授予的，会导致：
+#   - WRITE_SETTINGS：App 内「熄屏时间」写入 Settings.System 被拒（StdHal 静默返回 false）；
+#   - SYSTEM_ALERT_WINDOW：FloatWindowManager/FloatViewUtils 的 TYPE_APPLICATION_OVERLAY 弹不出来。
+# appops 只能以 root 改；这段必须在下面的「已是 DO 就退出」之前，否则保数据刷机
+# （标记/DO 都已存在）时永远不会执行。
+cmd appops set com.jsy.visual WRITE_SETTINGS allow 2>/dev/null
+cmd appops set com.jsy.visual SYSTEM_ALERT_WINDOW allow 2>/dev/null
+echo "deviceagent_do: vision_app appops applied" > /dev/kmsg
+
 # 已经是本包做 DO：补写标记后退出（标记缺失多半是 /data 被保数据刷机从旧盘带来）。
 for f in $OWNER_XML; do
     if grep -q "<device-owner [^>]*package=\"$PKG\"" "$f" 2>/dev/null; then

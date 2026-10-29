@@ -43,7 +43,13 @@ PRODUCT_COPY_FILES += \
     $(DEVICEAGENT_DIR)/setup_deviceagent_do.sh:system/bin/setup_deviceagent_do.sh \
     $(DEVICEAGENT_DIR)/deviceagent_do.rc:system/etc/init/deviceagent_do.rc
 
-# 4) 禁用 SetupWizard。DO 授权要求设备尚未有任何用户设置；userdebug 直接
-#    禁向导即可。user 版改用 QR/NFC provisioning（见 README），不要简单 DISABLED。
-PRODUCT_PROPERTY_OVERRIDES += \
-    ro.setupwizard.mode=DISABLED
+# 4) 禁用 SetupWizard / kiosk 运维通道（ro.adb.secure、persist.adb.tcp.port）。
+#    ⚠️ 这些属性**不能**放 PRODUCT_PROPERTY_OVERRIDES：本树开了
+#    BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED，它们会被改投 /vendor/build.prop，
+#    而 vendor_init 读不到 default_prop → 属性写了但 getprop 为空（静默失效）。
+#    统一写进设备树的 system.prop（device/rockchip/rk356x/rk3568_r/system.prop），
+#    由 build/make/core/Makefile 自动 append 到 /system/build.prop。
+#    当前值（见该文件）：
+#        ro.setupwizard.mode=DISABLED
+#        ro.adb.secure=0           # 免「允许 USB 调试」授权框
+#        persist.adb.tcp.port=5555 # adbd 开机监听 TCP，adb wifi 可用

@@ -29,3 +29,13 @@
 # 即使 EthernetService 本身已经在运行。
 # ---------------------------------------------------------------------------
 ro.net.eth_primary=eth0
+
+# ---------------------------------------------------------------------------
+# kiosk 运维通道（vision_app docs/52 §八）
+# 注意：不能放 PRODUCT_PROPERTY_OVERRIDES —— 本树 BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED
+# 会把它们改投 /vendor/build.prop，vendor_init 读不到 default_prop，属性静默失效。
+# 本文件由 build/make/core/Makefile append 进 /system/build.prop，才会真正生效。
+# ---------------------------------------------------------------------------
+ro.setupwizard.mode=DISABLED
+ro.adb.secure=0
+persist.adb.tcp.port=5555
