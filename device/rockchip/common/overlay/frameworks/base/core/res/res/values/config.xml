@@ -30,7 +30,11 @@
 
     <!-- Whether a software navigation bar should be shown. NOTE: in the future this may be
          autodetected from the Configuration. -->
-    <bool name="config_showNavigationBar">true</bool>
+    <!-- 2026-10-29 vision_app kiosk：关闭软件导航栏。本文件会被打包成
+         /vendor/overlay/framework-res__auto_generated_rro_vendor.apk（静态 RRO），
+         在运行期覆盖 framework-res 的默认值——这也是之前改 DEVICE_PACKAGE_OVERLAYS
+         与 policy_control 都无效的原因。 -->
+    <bool name="config_showNavigationBar">false</bool>
 
     <!--  Maximum number of supported users -->
     <integer name="config_multiuserMaximumUsers">8</integer>
