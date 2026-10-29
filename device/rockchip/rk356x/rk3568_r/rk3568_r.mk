@@ -147,3 +147,7 @@ PRODUCT_COPY_FILES += \
 
 # DeviceAgent（Tier2 配置层 / Device Owner + lockTask），见 vision_app docs/52
 $(call inherit-product-if-exists, device/rockchip/rk356x/deviceagent/device.mk)
+
+# vision_app（Tier3 功能应用）预装到 /system/priv-app，见 vision_app docs/52 §八
+# 用 inherit-product（非 if-exists）：文件缺失必须硬报错，避免静默打出不带 VisionApp 的包。
+$(call inherit-product, device/rockchip/rk356x/visionapp/device.mk)

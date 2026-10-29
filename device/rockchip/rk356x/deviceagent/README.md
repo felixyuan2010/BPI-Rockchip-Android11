@@ -63,6 +63,7 @@ firmware/
 3. `AdminReceiver` 成为 DO 后，在 `onEnabled` / `onProfileProvisioningComplete` 回调里 `setLockTaskPackages(["com.jsy.visual"])`（非 DO 时跳过，避免 SecurityException）。
 4. vision_app 在前台 `Activity.startLockTask()` 进入真正锁屏（滑不出、无导航）。
 5. 导航栏由 `overlay/config_showNavigationBar=false` 全局隐藏，作为双保险。
+   **实测更正（2026-10-29，build45 真机）**：这版 RK 固件不遵循该开关（`framework-res` 里已是 `false`，导航栏仍显示）；`policy_control=immersive.full=*` 同样无效（new insets mode FULL，`InsetsPolicy` 不读 `PolicyControl`）。实际隐藏由 vision_app 在 `onActivityResumed` 调 `WindowInsetsController.hide(systemBars())` 完成，并与 `startLockTask()` 配合。
 
 ## 风险与回退（docs/52 M5/N5）
 
