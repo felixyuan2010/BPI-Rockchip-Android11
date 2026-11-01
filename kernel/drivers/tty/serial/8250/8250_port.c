@@ -34,6 +34,7 @@
 #include <linux/uaccess.h>
 #include <linux/pm_runtime.h>
 #include <linux/ktime.h>
+#include <linux/gpio/consumer.h>
 
 #include <asm/io.h>
 #include <asm/irq.h>
@@ -563,6 +564,63 @@ static void serial8250_clear_fifos(struct uart_8250_port *p)
 			       UART_FCR_CLEAR_RCVR | UART_FCR_CLEAR_XMIT);
 		serial_out(p, UART_FCR, 0);
 	}
+}
+
+/*
+ * Some boards route transceiver DE to a GPIO instead of the UART RTS pad.
+ * DMA completion only means data reached the FIFO. Poll TEMT without busy
+ * waiting, holding the same lock as start_tx so a new write cannot race DE.
+ * Leave RX/DMA untouched: an immediate slave reply must not be flushed.
+ */
+#define UART_TX_DIR_POLL_NS	10000
+
+static enum hrtimer_restart serial8250_tx_dir_poll(struct hrtimer *timer)
+{
+	struct uart_8250_port *up = container_of(timer, struct uart_8250_port,
+					      tx_dir_timer);
+	struct uart_port *port = &up->port;
+	unsigned long flags;
+	unsigned char lsr;
+	bool pending;
+
+	spin_lock_irqsave(&port->lock, flags);
+	if (!port->state) {
+		gpiod_set_value(up->tx_dir_gpio, 0);
+		spin_unlock_irqrestore(&port->lock, flags);
+		return HRTIMER_NORESTART;
+	}
+
+	pending = port->x_char ||
+		(!uart_tx_stopped(port) && !uart_circ_empty(&port->state->xmit));
+	if (up->dma && up->dma->tx_running)
+		pending = true;
+	lsr = serial_in(up, UART_LSR);
+	up->lsr_saved_flags |= lsr & LSR_SAVE_FLAGS;
+	if (!pending && (lsr & BOTH_EMPTY) == BOTH_EMPTY) {
+		gpiod_set_value(up->tx_dir_gpio, 0);
+		spin_unlock_irqrestore(&port->lock, flags);
+		return HRTIMER_NORESTART;
+	}
+	hrtimer_forward_now(timer, ns_to_ktime(UART_TX_DIR_POLL_NS));
+	spin_unlock_irqrestore(&port->lock, flags);
+	return HRTIMER_RESTART;
+}
+
+void serial8250_tx_dir_init(struct uart_8250_port *up)
+{
+	if (!up->tx_dir_gpio)
+		return;
+	hrtimer_init(&up->tx_dir_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	up->tx_dir_timer.function = serial8250_tx_dir_poll;
+}
+
+void serial8250_tx_dir_shutdown(struct uart_8250_port *up)
+{
+	if (!up->tx_dir_gpio)
+		return;
+	/* Never cancel synchronously under port->lock. */
+	hrtimer_cancel(&up->tx_dir_timer);
+	gpiod_set_value(up->tx_dir_gpio, 0);
 }
 
 static inline void serial8250_em485_rts_after_send(struct uart_8250_port *p)
@@ -1650,6 +1708,11 @@ static void serial8250_start_tx(struct uart_port *port)
 	struct uart_8250_port *up = up_to_u8250p(port);
 	struct uart_8250_em485 *em485 = up->em485;
 
+	if (up->tx_dir_gpio) {
+		gpiod_set_value(up->tx_dir_gpio, 1);
+		hrtimer_start(&up->tx_dir_timer,
+			      ns_to_ktime(UART_TX_DIR_POLL_NS), HRTIMER_MODE_REL);
+	}
 	serial8250_rpm_get_tx(up);
 
 	if (em485 &&
@@ -2507,6 +2570,7 @@ void serial8250_do_shutdown(struct uart_port *port)
 
 	if (up->dma)
 		serial8250_release_dma(up);
+	serial8250_tx_dir_shutdown(up);
 
 	spin_lock_irqsave(&port->lock, flags);
 	if (port->flags & UPF_FOURPORT) {

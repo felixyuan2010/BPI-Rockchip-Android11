@@ -74,3 +74,11 @@ Example with two clocks:
 		reg-shift = <2>;
 		reg-io-width = <4>;
 	};
+
+SMDT board transceiver direction extension:
+- smdt,rs485-dir-gpios: optional non-sleeping, active-high GPIO. On the
+  AIoT-3568A UART7 this is GPIO3_13. The driver holds it low while idle,
+  high before starting TX, and releases it only after the software queue,
+  DMA transfer and UART FIFO/shift register are empty. This does not enable
+  the standard UART RTS-pin RS485 emulation and does not disable RX DMA.
+  Polling uses a 10us hrtimer; release latency must be validated on hardware.

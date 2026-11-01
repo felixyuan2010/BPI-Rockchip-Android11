@@ -4438,6 +4438,8 @@
 		dma-names = "tx\0rx";
 		pinctrl-names = "default";
 		pinctrl-0 = <0x10c>;
+		/* Factory uart7_rts: GPIO3_B5, high during TX only. */
+		smdt,rs485-dir-gpios = <0x41 0x0d 0x00>;
 		status = "okay";
 		phandle = <0x1ee>;
 	};

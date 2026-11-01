@@ -24,6 +24,7 @@
 #include <linux/clk.h>
 #include <linux/reset.h>
 #include <linux/pm_runtime.h>
+#include <linux/gpio/consumer.h>
 
 #include <asm/byteorder.h>
 
@@ -694,6 +695,24 @@ static int dw8250_probe(struct platform_device *pdev)
 		uart.dma = &data->dma;
 	}
 
+	/* Only boards explicitly declaring this GPIO opt in. */
+	uart.tx_dir_gpio = devm_gpiod_get_optional(dev, "smdt,rs485-dir",
+						 GPIOD_OUT_LOW);
+	if (IS_ERR(uart.tx_dir_gpio)) {
+		err = PTR_ERR(uart.tx_dir_gpio);
+		goto err_reset;
+	}
+	if (uart.tx_dir_gpio && gpiod_cansleep(uart.tx_dir_gpio)) {
+		dev_err(dev, "RS485 direction GPIO must not sleep\n");
+		err = -EINVAL;
+		goto err_reset;
+	}
+	if (uart.tx_dir_gpio && gpiod_is_active_low(uart.tx_dir_gpio)) {
+		dev_err(dev, "SMDT RS485 direction GPIO must be active high\n");
+		err = -EINVAL;
+		goto err_reset;
+	}
+
 	data->line = serial8250_register_8250_port(&uart);
 	if (data->line < 0) {
 		err = data->line;
@@ -706,6 +725,8 @@ static int dw8250_probe(struct platform_device *pdev)
 #endif
 
 	platform_set_drvdata(pdev, data);
+	if (uart.tx_dir_gpio)
+		dev_info(dev, "GPIO RS485 direction enabled: idle low, TX high, TEMT release; DMA retained\n");
 
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);

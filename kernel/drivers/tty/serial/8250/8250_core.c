@@ -1010,6 +1010,8 @@ int serial8250_register_8250_port(struct uart_8250_port *up)
 		uart->port.rs485_config	= up->port.rs485_config;
 		uart->port.rs485	= up->port.rs485;
 		uart->dma		= up->dma;
+		uart->tx_dir_gpio	= up->tx_dir_gpio;
+		serial8250_tx_dir_init(uart);
 #ifdef CONFIG_ARCH_ROCKCHIP
 		uart->port.line		= up->port.line;
 #endif
@@ -1096,6 +1098,8 @@ int serial8250_register_8250_port(struct uart_8250_port *up)
 	return ret;
 
 err:
+	serial8250_tx_dir_shutdown(uart);
+	uart->tx_dir_gpio = NULL;
 	uart->port.dev = NULL;
 	mutex_unlock(&serial_mutex);
 	return ret;
@@ -1124,6 +1128,8 @@ void serial8250_unregister_port(int line)
 	}
 
 	uart_remove_one_port(&serial8250_reg, &uart->port);
+	serial8250_tx_dir_shutdown(uart);
+	uart->tx_dir_gpio = NULL;
 	if (serial8250_isa_devs) {
 		uart->port.flags &= ~UPF_BOOT_AUTOCONF;
 		uart->port.type = PORT_UNKNOWN;

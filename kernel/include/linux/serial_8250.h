@@ -93,6 +93,8 @@ struct uart_8250_em485 {
  * dependent on the 8250 driver.
  */
 
+struct gpio_desc;
+
 struct uart_8250_port {
 	struct uart_port	port;
 	struct timer_list	timer;		/* "no irq" timer */
@@ -134,6 +136,10 @@ struct uart_8250_port {
 	void			(*dl_write)(struct uart_8250_port *, int);
 
 	struct uart_8250_em485 *em485;
+
+	/* Optional non-sleeping board transceiver direction GPIO. */
+	struct gpio_desc	*tx_dir_gpio;
+	struct hrtimer		tx_dir_timer;
 
 	/* Serial port overrun backoff */
 	struct delayed_work overrun_backoff;
