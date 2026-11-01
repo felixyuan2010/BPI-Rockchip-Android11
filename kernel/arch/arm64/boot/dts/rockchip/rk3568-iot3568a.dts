@@ -6058,6 +6058,88 @@
 		compatible = "gpio-leds";
 		phandle = <0x209>;
 
+		/*
+		 * SMDT smdtio 等价实现（docs/60）。
+		 * SMDT 用私有驱动 smdt,smdtio 管理 13 路 GPIO，属性见 /smdtio 节点：
+		 *   gpio_names / gpio_input_output / gpio_default_value
+		 * 本节点用标准 gpio-leds 复刻其中 10 路（其余 3 路已由既有机制占用）：
+		 *   gpio0-5  usb-port0-power  -> 已有 gpio-hog
+		 *   gpio0-6  usb-port1-power  -> 已有 gpio-hog
+		 *   gpio3-13 uart7_rts        -> 8250_dw 的 smdt,rs485-dir（docs/p6）
+		 * 默认电平严格对齐 gpio_default_value。
+		 */
+
+		/* 红蓝双色 LED：启动中红亮，boot_completed 后红灭蓝亮 */
+		red_led: red-led {
+			label = "red-led";
+			gpios = <&gpio3 26 0x00>;
+			default-state = "on";
+			linux,default-trigger = "none";
+		};
+
+		blue_led: blue-led {
+			label = "blue-led";
+			gpios = <&gpio3 27 0x00>;
+			default-state = "off";
+			linux,default-trigger = "none";
+		};
+
+		/* 第二颗蓝灯（呼吸灯），SMDT 上内核起来后即开始闪 */
+		breath_led: breath-led {
+			label = "breath-led";
+			gpios = <&gpio0 15 0x00>;
+			default-state = "on";
+			linux,default-trigger = "heartbeat";
+		};
+
+		/* 板载可编程 IO1~IO4（默认 high） */
+		io1_led: io1 {
+			label = "io1";
+			gpios = <&gpio2 24 0x00>;
+			default-state = "on";
+		};
+
+		io2_led: io2 {
+			label = "io2";
+			gpios = <&gpio2 25 0x00>;
+			default-state = "on";
+		};
+
+		io3_led: io3 {
+			label = "io3";
+			gpios = <&gpio2 26 0x00>;
+			default-state = "on";
+		};
+
+		io4_led: io4 {
+			label = "io4";
+			gpios = <&gpio2 27 0x00>;
+			default-state = "on";
+		};
+
+		/*
+		 * 3G 模块复位：SMDT gpio_default_value 索引 8 = **low**（保持复位）。
+		 * 早期版本误写 on，与 SMDT 相反 —— 已按三表（names/defaults/in_out）
+		 * 13/13/13 逐索引对齐纠正（docs/60 §5.2 对齐表）。
+		 */
+		ap_3g_reset_led: ap-3g-reset {
+			label = "ap-3g-reset";
+			gpios = <&gpio3 17 0x00>;
+			default-state = "off";
+		};
+
+		/*
+		 * ap-3g-module-power-en（索引 9 = high）与 ap-3g-module-wakeup
+		 * （索引 10 = high）指向同一个 GPIO0_C6，两值相同，不存在覆盖争议，
+		 * 终态 high。
+		 */
+		ap_3g_power_led: ap-3g-power-en {
+			label = "ap-3g-power-en";
+			gpios = <&gpio0 22 0x00>;
+			default-state = "on";
+		};
+
+		/* AOSP 遗留心跳灯，非上面两颗蓝灯 */
 		work_led: work {
 			gpios = <0x38 0x10 0x00>;
 			linux,default-trigger = "heartbeat";
