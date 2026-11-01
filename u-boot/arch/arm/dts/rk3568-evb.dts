@@ -21,6 +21,21 @@
 		u-boot,dm-spl;
 		status = "okay";
 
+		/*
+		 * 注意：本节点在 board_late_init() 执行时**不可达**，改这里的阈值对
+		 * U-Boot 下载键没有任何影响 —— 实测 board_late_init() 里 gd->fdt_blob
+		 * 指向的已是内核 dtb（0x0a100000，size 27232），key 驱动实际读的是
+		 * 内核 dts 里的 adc-keys（vol-up/vol-down/menu/back/uboot-key）。
+		 * 本板的 UBOOT/升级键在内核 dts 里是 uboot-key = KEY_F7 (65)、
+		 * press-threshold = 223000 uV（窗口 [96,156]，按住 raw=127 命中）。
+		 *
+		 * 因此修复不在 dts，而在 board/rockchip/evb_rk3568/evb_rk3568.c 里
+		 * 覆盖 rockchip_dnl_key_pressed()，同时认 KEY_VOLUMEUP 和 KEY_F7。
+		 * 详见 docs/61 §十 与 §十一。
+		 *
+		 * 保持公版原值 9 uV，是为了让 fdt 组件与工厂 uboot 逐字节一致
+		 * （sha256 fcfda359...），不给闸门引入新基线。
+		 */
 		volumeup-key {
 			u-boot,dm-spl;
 			linux,code = <KEY_VOLUMEUP>;
@@ -29,6 +44,7 @@
 		};
 	};
 };
+
 
 &gmac0 {
 	phy-mode = "rgmii";
