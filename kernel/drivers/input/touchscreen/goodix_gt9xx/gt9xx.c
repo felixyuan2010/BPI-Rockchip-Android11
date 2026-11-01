@@ -429,7 +429,7 @@ if (1 == rotation) {
     input_mt_sync(ts->input_dev);
 #endif
 
-    GTP_INFO("ID:%d, X:%d, Y:%d, W:%d", id, x, y, w);
+    /* touch coordinate trace disabled (spams serial console) */
 }
 
 /*******************************************************
