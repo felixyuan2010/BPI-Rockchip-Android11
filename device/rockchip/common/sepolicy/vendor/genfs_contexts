@@ -103,3 +103,21 @@ genfscon sysfs /devices/platform/fe330000.sdhci                                 
 genfscon sysfs_wakeup / u:object_r:sysfs_wakeup:s0
 
 genfscon fuseblk / u:object_r:fuseblk:s0
+
+# 分层睡眠：两块屏背光的 brightness / bl_power。
+#
+# ★ 必须写**真实路径**，不能写 /class/backlight/xxx。构建时写成 /class/... 也能编译通过、
+#   neverallow 也清零，但**运行时完全不生效**：/sys/class/backlight/backlight 是符号链接
+#   （-> ../../devices/platform/backlight/backlight/backlight），而 genfscon 是按 inode 的
+#   真实 dentry 路径匹配的，链接路径永远匹配不到目标 inode。
+#   build62 实测现象：ls -Z 仍是 u:object_r:sysfs:s0，system_server 写 bl_power 报 EACCES，
+#   短按电源"看起来没反应"（其实 L1 逻辑跑了，只是写环境失败）；setenforce 0 后立刻 bl_power=4。
+#   真实路径用 `readlink -f /sys/class/backlight/backlight{,1}` 取得，即下面 4 条。
+#   AOSP 自身也是这个写法：见 private/genfs_contexts 的 /devices/virtual/timed_output/vibrator/enable。
+#
+# 只精确到 brightness / bl_power 两个文件，不覆盖目录：目录若被打上 sysfs_backlight，
+# 还要额外给 dir search，影响面更大，没有必要。
+genfscon sysfs /devices/platform/backlight/backlight/backlight/brightness     u:object_r:sysfs_backlight:s0
+genfscon sysfs /devices/platform/backlight/backlight/backlight/bl_power       u:object_r:sysfs_backlight:s0
+genfscon sysfs /devices/platform/backlight1/backlight/backlight1/brightness   u:object_r:sysfs_backlight:s0
+genfscon sysfs /devices/platform/backlight1/backlight/backlight1/bl_power     u:object_r:sysfs_backlight:s0

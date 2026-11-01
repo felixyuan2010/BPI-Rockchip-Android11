@@ -49,6 +49,14 @@ type sys_mali, fs_type, debugfs_type, mlstrustedobject;
 type debugfs_sw_sync, fs_type, debugfs_type;
 type sysfs_dmc, fs_type, sysfs_type;
 type sysfs_mmc, fs_type, sysfs_type;
+# 分层睡眠：两块屏 pwm-backlight 的 brightness / bl_power。
+# 打专属类型以绕开 neverallow（{ coredomain } sysfs:file no_rw_file_perms /
+# { appdomain } sysfs:dir_file_class_set write）——那两条针对的是具体类型 sysfs，
+# 不是属性 sysfs_type。
+#
+# 注意：类型打在**真实设备路径**上，不是 /sys/class/backlight/*（符号链接）。
+# 详见 vendor/genfs_contexts 里那 4 条 genfscon 的说明。
+type sysfs_backlight, fs_type, sysfs_type;
 
 # input files
 type idc_file, file_type, vendor_file_type;

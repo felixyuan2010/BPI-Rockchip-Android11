@@ -28,3 +28,7 @@ binder_call(system_server, zygote)
 
 rw_rockchip_graphic_device(system_server)
 get_prop(system_server,vendor_default_prop)
+
+# 分层睡眠（docs/p6/tiered-sleep-design-v3.md）：framework 用 bl_power 开关两块屏背光，
+# 并直写副屏 brightness（主屏 brightness 仍由 hal_light_default 负责）。
+allow system_server sysfs_backlight:file rw_file_perms;

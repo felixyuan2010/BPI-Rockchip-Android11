@@ -58,3 +58,18 @@ persist.adb.tcp.port=5555
 #     adb shell cmd alarm set-timezone Asia/Shanghai
 # ---------------------------------------------------------------------------
 persist.sys.timezone=Asia/Shanghai
+
+# ---------------------------------------------------------------------------
+# 分层睡眠（docs/p6/tiered-sleep-design-v3.md）
+#
+# true 时，goToSleep（电源键/熄屏超时/App 请求）不再真熄屏，而是降级为 L1：
+# framework(PowerManagerService) 自己写两块屏的 bl_power=4（只关灯、vp0/vp1 不下电、
+# wakefulness 保持 AWAKE），触摸时 View 钩子发 TOUCH_WAKE 广播，PMS 收到后写回
+# bl_power=0，所以唤醒没有 DSI 初始化等待。
+# L1 停留超过 Settings.System.deep_sleep_timeout_ms 后由 PMS 定时器发起 L2 真睡
+# （goToSleep reason=DEVICE_ADMIN），此时 vp 才下电。
+# 运行期可用 setprop persist.os.fake.sleep false/true 临时开关，不需要重新出包。
+# 注意：放 system.prop（persist 属性，会被 append 进 /system/build.prop），
+# 不放 PRODUCT_PROPERTY_OVERRIDES（会被改投 /vendor/build.prop 而静默失效）。
+# ---------------------------------------------------------------------------
+persist.os.fake.sleep=true

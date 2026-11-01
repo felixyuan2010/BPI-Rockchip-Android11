@@ -89,6 +89,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.RemoteException;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.Trace;
 import android.sysprop.DisplayProperties;
 import android.text.InputType;
@@ -826,6 +827,21 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     // NOTE: We cannot use android.view.autofill.Helper.sVerbose because that variable is not
     // set if a session is not started.
     private static final String AUTOFILL_LOG_TAG = "View.Autofill";
+
+    /** Tiered sleep: touch-wake broadcast action, handled inside PowerManagerService. */
+    private static final String ACTION_TOUCH_WAKE =
+            "com.jsy.deviceagent.action.TOUCH_WAKE";
+
+    /**
+     * Tiered sleep: minimum gap between two touch-wake broadcasts.
+     *
+     * dispatchTouchEvent() runs once per view on the hit path, so a single ACTION_DOWN
+     * would otherwise fire several broadcasts for the same finger. 200ms collapses them
+     * into one without ever delaying a genuine "user touched a dark screen" wake-up.
+     */
+    private static final long TOUCH_WAKE_MIN_INTERVAL_MS = 200;
+
+    private static long sLastTouchWakeBroadcastTime;
 
     /**
      * The logging tag used by this class when logging content capture-related messages.
@@ -14292,6 +14308,24 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         if (actionMasked == MotionEvent.ACTION_DOWN) {
             // Defensive cleanup for new gesture
             stopNestedScroll();
+
+            // Tiered sleep touch-wake hook. During L1 the backlights are off but the
+            // display pipeline is still powered, so PowerManagerService cannot learn
+            // about the touch from an input event any more -- we have to tell it.
+            // Only ACTION_DOWN is considered (one broadcast per gesture) and the
+            // broadcast is registered-only, so it never leaves the system.
+            // PowerManagerService ignores it unless L1 is actually active.
+            // See docs/p6/tiered-sleep-design-v3.md.
+            if (mContext != null
+                    && SystemProperties.getBoolean("persist.os.fake.sleep", false)) {
+                final long now = SystemClock.uptimeMillis();
+                if (now - sLastTouchWakeBroadcastTime >= TOUCH_WAKE_MIN_INTERVAL_MS) {
+                    sLastTouchWakeBroadcastTime = now;
+                    Intent touchWake = new Intent(ACTION_TOUCH_WAKE);
+                    touchWake.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY);
+                    mContext.sendBroadcast(touchWake);
+                }
+            }
         }
 
         if (onFilterTouchEventForSecurity(event)) {

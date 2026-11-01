@@ -140,6 +140,8 @@ public final class PowerManagerService extends SystemService
     private static final int MSG_CHECK_FOR_LONG_WAKELOCKS = 4;
     // Message: Sent when an attentive timeout occurs to update the power state.
     private static final int MSG_ATTENTIVE_TIMEOUT = 5;
+    // Message: Sent when the tiered-sleep L1 -> L2 (deep sleep) timer expires.
+    private static final int MSG_TIERED_SLEEP_L2_TIMEOUT = 6;
 
     // Dirty bit: mWakeLocks changed
     private static final int DIRTY_WAKE_LOCKS = 1 << 0;
@@ -211,6 +213,62 @@ public final class PowerManagerService extends SystemService
 
     // System property indicating that the screen should remain off until an explicit user action
     private static final String SYSTEM_PROPERTY_QUIESCENT = "ro.boot.quiescent";
+
+    // ---- Tiered sleep: L1 = backlight off (fake sleep), L2 = real deep sleep ----
+    // See docs/p6/tiered-sleep-design-v3.md.
+    //
+    // L1 deliberately does NOT power off vp0/vp1. It only parks both panels through
+    // pwm-backlight's bl_power, so the display pipeline and the touch path stay alive
+    // and waking up costs one bl_power write instead of a full DSI init sequence.
+    // Wakefulness stays AWAKE for the whole of L1.
+    // L2 is a real goToSleep(GO_TO_SLEEP_REASON_DEVICE_ADMIN) issued by our own timer.
+
+    /** Runtime gate for the whole feature; flip with setprop, no reboot needed. */
+    private static final String PROP_TIERED_SLEEP = "persist.os.fake.sleep";
+
+    /** Sent by the View.dispatchTouchEvent() hook (framework.jar, app process). */
+    private static final String ACTION_TOUCH_WAKE =
+            "com.jsy.deviceagent.action.TOUCH_WAKE";
+
+    /**
+     * Backlight sysfs nodes. Both panels are typed sysfs_backlight
+     * (vendor/genfs_contexts) and chown'ed to system by init.rk30board.rc, which is
+     * what lets system_server write them at all.
+     */
+    private static final String PATH_BL_POWER_PRIMARY =
+            "/sys/class/backlight/backlight/bl_power";
+    private static final String PATH_BL_POWER_SECONDARY =
+            "/sys/class/backlight/backlight1/bl_power";
+    private static final String PATH_BRIGHTNESS_SECONDARY =
+            "/sys/class/backlight/backlight1/brightness";
+
+    /** FB_BLANK_UNBLANK / FB_BLANK_POWERDOWN, as understood by pwm-backlight. */
+    private static final int BL_POWER_ON = 0;
+    private static final int BL_POWER_OFF = 4;
+
+    /**
+     * Secondary panel brightness, 0..255. The primary panel keeps using
+     * Settings.System.SCREEN_BRIGHTNESS through the existing Lights HAL path.
+     */
+    private static final String SETTING_SECONDARY_BRIGHTNESS =
+            "secondary_screen_brightness";
+    private static final int DEFAULT_SECONDARY_BRIGHTNESS = 128;
+    /**
+     * Lower bound for the secondary panel, deliberately equal to what the platform
+     * already enforces on the primary panel: writing SCREEN_BRIGHTNESS 0 ends up at 10
+     * on backlight/brightness (mScreenBrightnessRangeMinimum 0.035433073 * 255 ~= 9.03).
+     *
+     * There is no such clamp on backlight1: without this, a plain
+     * `settings put system secondary_screen_brightness 0` would switch the secondary
+     * LED backlight off completely and the panel looks dead. Clamping here rather than
+     * only in DeviceAgent also covers direct settings writes.
+     */
+    private static final int MIN_SECONDARY_BRIGHTNESS = 10;
+    private static final int MAX_SECONDARY_BRIGHTNESS = 255;
+
+    /** Delay between entering L1 and entering L2 (real deep sleep). */
+    private static final String SETTING_DEEP_SLEEP_TIMEOUT_MS = "deep_sleep_timeout_ms";
+    private static final int DEFAULT_DEEP_SLEEP_TIMEOUT_MS = 60 * 60 * 1000;
 
     // System Property indicating that retail demo mode is currently enabled.
     private static final String SYSTEM_PROPERTY_RETAIL_DEMO_ENABLED = "sys.retaildemo.enabled";
@@ -575,6 +633,21 @@ public final class PowerManagerService extends SystemService
 
     // True if double tap to wake is enabled
     private boolean mDoubleTapWakeEnabled;
+
+    // Tiered sleep: true while L1 is active (backlights off, display pipeline still
+    // powered, wakefulness still AWAKE). Guarded by mLock; single source of truth.
+    private boolean mTieredSleepL1Active;
+
+    // Tiered sleep: secondary panel brightness as read from Settings.System.
+    private int mSecondaryScreenBrightnessSetting = DEFAULT_SECONDARY_BRIGHTNESS;
+
+    // Tiered sleep: last value actually written to the secondary backlight node, so a
+    // settings change for an unrelated key does not cause sysfs traffic.
+    private int mSecondaryScreenBrightnessApplied = -1;
+
+    // Tiered sleep: deep-sleep threshold, cached so arming the L2 timer never has to go
+    // through a ContentResolver lookup while mLock is held.
+    private int mDeepSleepTimeoutSetting = DEFAULT_DEEP_SLEEP_TIMEOUT_MS;
 
     // True if we are currently in VR Mode.
     private boolean mIsVrModeEnabled;
@@ -1138,6 +1211,12 @@ public final class PowerManagerService extends SystemService
         resolver.registerContentObserver(Settings.Secure.getUriFor(
                 Settings.Secure.DOUBLE_TAP_TO_WAKE),
                 false, mSettingsObserver, UserHandle.USER_ALL);
+        resolver.registerContentObserver(Settings.System.getUriFor(
+                SETTING_SECONDARY_BRIGHTNESS),
+                false, mSettingsObserver, UserHandle.USER_ALL);
+        resolver.registerContentObserver(Settings.System.getUriFor(
+                SETTING_DEEP_SLEEP_TIMEOUT_MS),
+                false, mSettingsObserver, UserHandle.USER_ALL);
         resolver.registerContentObserver(Settings.Global.getUriFor(
                 Settings.Global.DEVICE_DEMO_MODE),
                 false, mSettingsObserver, UserHandle.USER_SYSTEM);
@@ -1168,6 +1247,14 @@ public final class PowerManagerService extends SystemService
         filter = new IntentFilter();
         filter.addAction(Intent.ACTION_DOCK_EVENT);
         mContext.registerReceiver(new DockReceiver(), filter, null, mHandler);
+
+        // Tiered sleep: touch-wake requests. The sender is the View.dispatchTouchEvent()
+        // hook, which runs inside app processes, so no permission can be required here.
+        // The receiver is registered-only and ignores the broadcast unless L1 is active;
+        // the worst an app can achieve by forging it is turning the screen on.
+        filter = new IntentFilter();
+        filter.addAction(ACTION_TOUCH_WAKE);
+        mContext.registerReceiver(new TouchWakeReceiver(), filter, null, mHandler);
     }
 
     @VisibleForTesting
@@ -1266,6 +1353,25 @@ public final class PowerManagerService extends SystemService
         mScreenBrightnessModeSetting = Settings.System.getIntForUser(resolver,
                 Settings.System.SCREEN_BRIGHTNESS_MODE,
                 Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL, UserHandle.USER_CURRENT);
+
+        // Tiered sleep: secondary panel brightness. The primary panel keeps using
+        // SCREEN_BRIGHTNESS above, untouched.
+        final int rawSecondaryBrightness = Settings.System.getIntForUser(resolver,
+                SETTING_SECONDARY_BRIGHTNESS, DEFAULT_SECONDARY_BRIGHTNESS,
+                UserHandle.USER_CURRENT);
+        final int clampedSecondaryBrightness = Math.max(MIN_SECONDARY_BRIGHTNESS,
+                Math.min(MAX_SECONDARY_BRIGHTNESS, rawSecondaryBrightness));
+        if (clampedSecondaryBrightness != rawSecondaryBrightness) {
+            Slog.w(TAG, "secondary brightness " + rawSecondaryBrightness
+                    + " out of range [" + MIN_SECONDARY_BRIGHTNESS + ","
+                    + MAX_SECONDARY_BRIGHTNESS + "], using " + clampedSecondaryBrightness);
+        }
+        mSecondaryScreenBrightnessSetting = clampedSecondaryBrightness;
+
+        // Tiered sleep: L1 -> L2 threshold, counted from the last user activity.
+        mDeepSleepTimeoutSetting = Settings.System.getIntForUser(resolver,
+                SETTING_DEEP_SLEEP_TIMEOUT_MS, DEFAULT_DEEP_SLEEP_TIMEOUT_MS,
+                UserHandle.USER_CURRENT);
 
         mDirty |= DIRTY_SETTINGS;
     }
@@ -1641,6 +1747,13 @@ public final class PowerManagerService extends SystemService
                         mDirty |= DIRTY_QUIESCENT;
                     }
 
+                    // Tiered sleep: the L2 deadline is measured from the last user
+                    // activity, so it has to be pushed out again here. This only matters
+                    // if an app pokes PowerManager.userActivity() while L1 is active --
+                    // the normal touch path leaves L1 through exitFakeSleepLocked() first.
+                    if (mTieredSleepL1Active) {
+                        scheduleTieredSleepL2Locked();
+                    }
                     return true;
                 }
             } else {
@@ -1649,6 +1762,11 @@ public final class PowerManagerService extends SystemService
                     mDirty |= DIRTY_USER_ACTIVITY;
                     if (event == PowerManager.USER_ACTIVITY_EVENT_BUTTON) {
                         mDirty |= DIRTY_QUIESCENT;
+                    }
+                    // Tiered sleep: re-arm L2 off the freshly updated activity time.
+                    // See the NO_CHANGE_LIGHTS branch above.
+                    if (mTieredSleepL1Active) {
+                        scheduleTieredSleepL2Locked();
                     }
                     return true;
                 }
@@ -1723,6 +1841,151 @@ public final class PowerManagerService extends SystemService
     }
 
     /**
+     * True when a goToSleep request should be downgraded to L1 (backlight-only sleep).
+     *
+     * Gated by persist.os.fake.sleep, which can be flipped with setprop at runtime.
+     * Our own L2 timer asks for a REAL sleep by using GO_TO_SLEEP_REASON_DEVICE_ADMIN;
+     * that reason is treated as an explicit deep-sleep request and is NOT downgraded,
+     * so vp0/vp1 really do power off.
+     */
+    private boolean shouldFakeSleepLocked(int reason) {
+        if (!SystemProperties.getBoolean(PROP_TIERED_SLEEP, false)) {
+            return false;
+        }
+        // L2 deep-sleep override: DEVICE_ADMIN reason = explicit real sleep request.
+        return reason != PowerManager.GO_TO_SLEEP_REASON_DEVICE_ADMIN;
+    }
+
+    /**
+     * Best-effort decimal write to a sysfs node.
+     *
+     * A missing or unwritable backlight node must never take the power state machine
+     * down, so failures are logged and swallowed.
+     */
+    private void writeSysfsIntLocked(String path, int value) {
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(path)) {
+            out.write(Integer.toString(value)
+                    .getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        } catch (Exception e) {
+            Slog.w(TAG, "tiered sleep: failed to write " + value + " to " + path + ": " + e);
+        }
+    }
+
+    /**
+     * Tiered sleep L1: park both backlights, keep everything else powered.
+     *
+     * This is the whole point of the design. vp0/vp1 stay ACTIVE and wakefulness stays
+     * AWAKE, so there is no DSI init sequence, no DRM modeset and no
+     * vop2_crtc_atomic_disable on the way back. Waking up is a single bl_power=0 write;
+     * pwm-backlight keeps props.brightness across bl_power, so the user's brightness
+     * comes back by itself and we never have to remember it.
+     *
+     * Writing bl_power does not emit FB_EVENT_BLANK either, so GT9XX never suspends and
+     * the touch path stays usable for the wake-up.
+     */
+    private void goToFakeSleepLocked(long eventTime, int reason) {
+        Slog.i(TAG, "Tiered sleep L1: backlight off, display pipeline stays on. reason="
+                + PowerManager.sleepReasonToString(reason));
+        writeSysfsIntLocked(PATH_BL_POWER_PRIMARY, BL_POWER_OFF);
+        writeSysfsIntLocked(PATH_BL_POWER_SECONDARY, BL_POWER_OFF);
+
+        if (!mTieredSleepL1Active) {
+            mTieredSleepL1Active = true;
+            scheduleTieredSleepL2Locked();
+        }
+    }
+
+    /**
+     * Tiered sleep L1 exit: unblank both backlights.
+     *
+     * Brightness is not touched on purpose: the kernel driver still holds the previous
+     * props.brightness for each panel, so PWM duty comes straight back to where it was.
+     */
+    private void exitFakeSleepLocked() {
+        if (!mTieredSleepL1Active) {
+            return;
+        }
+        Slog.i(TAG, "Tiered sleep L1 exit: backlight on");
+        writeSysfsIntLocked(PATH_BL_POWER_PRIMARY, BL_POWER_ON);
+        writeSysfsIntLocked(PATH_BL_POWER_SECONDARY, BL_POWER_ON);
+        mTieredSleepL1Active = false;
+        mHandler.removeMessages(MSG_TIERED_SLEEP_L2_TIMEOUT);
+    }
+
+    /**
+     * Arms the L1 -> L2 timer.
+     *
+     * The threshold counts from the LAST USER ACTIVITY, not from the moment L1 was
+     * entered. What the user configures is "how long without touching anything before the
+     * device really sleeps". Measuring from L1 entry would silently add the screen-off
+     * timeout on top: with screen_off=15s and deep_sleep=30s the device would really
+     * sleep at 45s instead of 30s.
+     *
+     * A non-positive setting disables L2: the device then stays in L1 (backlight off,
+     * panel still powered) until it is touched, which is the fastest-wake behaviour.
+     *
+     * If the deadline has already passed (deep_sleep <= screen_off, i.e. the two settings
+     * disagree), the message is posted with delay 0 and L2 happens right away.
+     */
+    private void scheduleTieredSleepL2Locked() {
+        mHandler.removeMessages(MSG_TIERED_SLEEP_L2_TIMEOUT);
+        final int timeoutMs = mDeepSleepTimeoutSetting;
+        if (timeoutMs <= 0) {
+            Slog.i(TAG, "Tiered sleep L2 disabled (timeout=" + timeoutMs + ")");
+            return;
+        }
+        final long now = mClock.uptimeMillis();
+        final long base = mLastUserActivityTime > 0 ? mLastUserActivityTime : now;
+        final long delayMs = Math.max(0L, base + timeoutMs - now);
+        Slog.i(TAG, "Tiered sleep L2 in " + delayMs + "ms (deadline = last user activity + "
+                + timeoutMs + "ms)");
+        mHandler.sendMessageDelayed(
+                mHandler.obtainMessage(MSG_TIERED_SLEEP_L2_TIMEOUT), delayMs);
+    }
+
+    /**
+     * L1 -> L2: ask for a REAL sleep.
+     *
+     * GO_TO_SLEEP_REASON_DEVICE_ADMIN is exactly the reason shouldFakeSleepLocked()
+     * lets through, so this does power off vp0/vp1. The backlight is left alone here:
+     * bl_power is already 4, and the kernel's fb notifier keeps it at 4 on blank.
+     */
+    private void handleTieredSleepL2Timeout() {
+        synchronized (mLock) {
+            if (!mTieredSleepL1Active) {
+                return;
+            }
+            Slog.i(TAG, "Tiered sleep L2: leaving L1 for a real deep sleep");
+            mTieredSleepL1Active = false;
+            final long now = mClock.uptimeMillis();
+            if (goToSleepNoUpdateLocked(now,
+                    PowerManager.GO_TO_SLEEP_REASON_DEVICE_ADMIN,
+                    PowerManager.GO_TO_SLEEP_FLAG_NO_DOZE, Process.SYSTEM_UID)) {
+                updatePowerStateLocked();
+            }
+        }
+    }
+
+    /**
+     * Pushes Settings.System.secondary_screen_brightness into the secondary panel.
+     *
+     * This is deliberately independent from L1: writing brightness while bl_power=4
+     * only updates props.brightness, the kernel keeps PWM disabled, so a settings write
+     * during L1 cannot light the panel up.
+     */
+    private void updateSecondaryScreenBrightnessLocked(int dirty) {
+        if ((dirty & DIRTY_SETTINGS) == 0) {
+            return;
+        }
+        final int value = mSecondaryScreenBrightnessSetting;
+        if (value == mSecondaryScreenBrightnessApplied) {
+            return;
+        }
+        writeSysfsIntLocked(PATH_BRIGHTNESS_SECONDARY, value);
+        mSecondaryScreenBrightnessApplied = value;
+    }
+
+    /**
      * Puts the system in doze.
      *
      * This method is called goToSleep for historical reasons but actually attempts to DOZE,
@@ -1742,6 +2005,39 @@ public final class PowerManagerService extends SystemService
                 || !mSystemReady
                 || !mBootCompleted) {
             return false;
+        }
+
+        // Tiered sleep: during L1 the system is still AWAKE, so the normal wake path is
+        // never taken for the power key. A power press during L1 therefore means "turn
+        // the screen back on", not "go to sleep again".
+        if (mTieredSleepL1Active
+                && reason == PowerManager.GO_TO_SLEEP_REASON_POWER_BUTTON) {
+            Slog.i(TAG, "Tiered sleep L1: power key while in L1 -> backlight on");
+            exitFakeSleepLocked();
+            userActivityNoUpdateLocked(
+                    eventTime, PowerManager.USER_ACTIVITY_EVENT_OTHER, 0, uid);
+            // Return true so the caller recomputes the power state and the panel policy
+            // goes back to POLICY_BRIGHT.
+            return true;
+        }
+
+        // Tiered sleep L1: when enabled, a goToSleep request (power key, screen-off
+        // timeout, or app) does NOT power off the display pipeline. Only the backlights
+        // are parked, so the next wake is instant. Wakefulness stays AWAKE.
+        // See docs/p6/tiered-sleep-design-v3.md.
+        if (shouldFakeSleepLocked(reason)) {
+            goToFakeSleepLocked(eventTime, reason);
+            // Return false: wakefulness did not change (still AWAKE), so callers do not
+            // recompute the power state for a sleep that never happened.
+            return false;
+        }
+
+        // Any real sleep path drops the L1 state and its L2 timer, so a stale timer can
+        // never later put an awake device to sleep.
+        if (mTieredSleepL1Active) {
+            Slog.i(TAG, "Tiered sleep: real sleep requested while in L1, dropping L1");
+            mTieredSleepL1Active = false;
+            mHandler.removeMessages(MSG_TIERED_SLEEP_L2_TIMEOUT);
         }
 
         Trace.traceBegin(Trace.TRACE_TAG_POWER, "goToSleep");
@@ -1920,6 +2216,7 @@ public final class PowerManagerService extends SystemService
             updateIsPoweredLocked(mDirty);
             updateStayOnLocked(mDirty);
             updateScreenBrightnessBoostLocked(mDirty);
+            updateSecondaryScreenBrightnessLocked(mDirty);
 
             // Phase 1: Update wakefulness.
             // Loop because the wake lock and user activity computations are influenced
@@ -4375,6 +4672,27 @@ public final class PowerManagerService extends SystemService
         }
     }
 
+    /**
+     * Tiered sleep: turns the backlights back on when the user touches the screen during
+     * L1. Wakefulness never left AWAKE, so this is not a wake-up in the PMS sense — it is
+     * just "unblank the panels and push the screen-off timer forward".
+     */
+    private final class TouchWakeReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            synchronized (mLock) {
+                if (!mTieredSleepL1Active) {
+                    return;
+                }
+                Slog.i(TAG, "Tiered sleep L1: touch wake");
+                exitFakeSleepLocked();
+                userActivityNoUpdateLocked(mClock.uptimeMillis(),
+                        PowerManager.USER_ACTIVITY_EVENT_OTHER, 0, Process.SYSTEM_UID);
+                updatePowerStateLocked();
+            }
+        }
+    }
+
     private final class DockReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -4439,6 +4757,9 @@ public final class PowerManagerService extends SystemService
                     break;
                 case MSG_ATTENTIVE_TIMEOUT:
                     handleAttentiveTimeout();
+                    break;
+                case MSG_TIERED_SLEEP_L2_TIMEOUT:
+                    handleTieredSleepL2Timeout();
                     break;
             }
 

@@ -1,1 +1,4 @@
 allow hal_light_default sysfs:file { open read write };
+# 主屏背光节点已改打 sysfs_backlight 专属类型（分层睡眠），上面的通配 sysfs:file 规则
+# 不再覆盖它，故显式授权；否则主屏亮度调节（Settings.SCREEN_BRIGHTNESS）会失效。
+allow hal_light_default sysfs_backlight:file rw_file_perms;

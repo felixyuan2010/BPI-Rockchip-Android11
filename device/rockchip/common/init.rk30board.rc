@@ -125,6 +125,12 @@ on boot
     # backlight
     chown system system /sys/class/backlight/rk28_bl/brightness
     chown system system /sys/class/backlight/backlight/brightness
+    # 分层睡眠（docs/p6/tiered-sleep-design-v3.md）：framework(system_server) 统一用 bl_power
+    # 开关两块屏背光（L1 只关灯、vp 不下电），并直写副屏亮度。写者 UID 是 system，
+    # 只要属主可写即可，不需要 0666。
+    chown system system /sys/class/backlight/backlight/bl_power
+    chown system system /sys/class/backlight/backlight1/brightness
+    chown system system /sys/class/backlight/backlight1/bl_power
     
     # for hdmi
     chown root system /sys/class/display/HDMI/enable
