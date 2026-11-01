@@ -40,3 +40,18 @@ build.sh.orig
 
 # BoardConfig.mk 切档前的原版留档
 device/rockchip/rk356x/rk3568_r/BoardConfig.mk.orig
+
+# ---------------------------------------------------------------------------
+# 编译产物 / 打包中间件 —— 一律不入库（体积大，且全部可由源码重建）
+# ---------------------------------------------------------------------------
+# build.sh 的 per-image 输出目录（累计 40G 量级）
+/IMAGE/
+# 内核 / U-Boot 单独编译产生的 out（各 35M）
+/kernel/out/
+/u-boot/out/
+# mkupdate 打包时把成品逐次拷进来，96G 量级；只有最后的 update.img 有意义，
+# 而它由 firmware/build-pipeline 统一产出并归档，不在这里管
+/RKTools/linux/Linux_Pack_Firmware/rockdev/deliver/
+# make-firmware.sh 运行时从 vision_app/firmware 同步过来的脚本副本（唯一源在那边），
+# 忽略是为了防止有人在这里改了然后被误提交
+/tools/firmware/
