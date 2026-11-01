@@ -15,7 +15,7 @@ firmware/
 ├── device.mk                       # 设备配置片段（include 到设备 device.mk）
 ├── prebuilt/
 │   └── Android.mk                  # prebuilt 模块：priv-app + platform 签名
-│   └── DeviceAgent.apk             # 构建管线放置（不进 git）
+│   └── DeviceAgent.apk             # **本仓库为唯一源**（不进 git），出包时同步到固件树
 ├── setup_deviceagent_do.sh         # 首启一次性 DO 授权脚本
 ├── deviceagent_do.rc               # init 服务（boot_completed 后触发）
 ├── overlay/frameworks/base/core/res/res/values/config.xml  # 隐藏导航栏
@@ -29,13 +29,21 @@ firmware/
    ```makefile
    $(call inherit-product-if-exists, device/rockchip/rk3568/jsy/deviceagent/device.mk)
    ```
-3. 构建 DeviceAgent APK，放到 `prebuilt/DeviceAgent.apk`：
+3. 构建 DeviceAgent APK，并**放回本仓库的 `prebuilt/DeviceAgent.apk`**（它是固件的唯一 APK 源）：
    ```bash
    cd <vision_app>
    ./gradlew :deviceagent:assembleRelease
    cp deviceagent/build/outputs/apk/release/deviceagent-release.apk \
-      <rk3568-src>/device/rockchip/rk3568/jsy/deviceagent/prebuilt/DeviceAgent.apk
+      deviceagent/firmware/prebuilt/DeviceAgent.apk        # ← 目标是**本仓库**，不是 rk3568-src
    ```
+   `firmware/make-firmware.sh` 出包时会把它同步进 `device/rockchip/rk356x/deviceagent/prebuilt/`，
+   **并逐文件比对 sha256，不一致直接中止出包**。
+
+   > 2026-10-29 修正：此前文档写的是直接 cp 到 `<rk3568-src>/...`，而管线的实际行为是
+   > 「gradle 产物 → 容器」的旁路覆盖。两边叠加的结果是**仓库副本从来不影响固件内容**，
+   > 于是它静默旧了一整天（仓库 2 096 765 B / 容器 2 100 369 B）没人发现。
+   > 现在改为「仓库 → 容器」单向同步 + 双向 sha256 校验；gradle 产物与仓库不一致时
+   > 出包会硬失败，并打印该执行的 `cp` 命令。
 4. `chmod 0755 setup_deviceagent_do.sh`（PRODUCT_COPY_FILES 保留源权限，脚本须可执行）。
 5. 正常 `build.sh`，出包。
 
