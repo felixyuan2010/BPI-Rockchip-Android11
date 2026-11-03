@@ -39,8 +39,20 @@ BOARD_HS_ETHERNET := true
 # partition limit). Reference: bananapi_r2pro / rk356x_box both set false.
 TARGET_ROCKCHIP_PCBATEST := false
 
-# 2026-10-24: rotate primary display to 270deg (user request: "主屏显示先尝试
-# 旋转270度"). The touch panel is physically mounted 90deg off vs the panel; the
-# GT9XX driver rotation=<1> in the gt1x DTS node handles the touch-axis swap,
-# while SurfaceFlinger also rotates touch input by this amount.
-SF_PRIMARY_DISPLAY_ORIENTATION := 270
+# 2026-11-03: 主屏从 eDP 换成 DSI 后，这里必须是 0。
+#
+# 硬件事实（实测，见 docs/67）：
+#   DSI-1  1920x1200 原生横屏 —— 内置面板，唯一带触摸的屏（goodix-ts @i2c fe5a0000）
+#   eDP-1  1200x1920 原生竖屏 —— 被检者副屏，**物理横放**，因此需要 270° 补偿
+#
+# 历史：2026-10-24 曾把这里设成 270，是因为当时 HWC 把 eDP 选成了 primary
+# （vendor.hwc.device.primary 未设置，HWC 按 connector 枚举顺序取第一个 internal），
+# 而 eDP 原生竖屏 + 物理横放，必须靠这个全局 270° 才看着正常。
+# 副作用：带触摸的 DSI 变成了 external → 操作员屏没有触摸，触摸事件还被按
+# displayId=0 回落到 eDP 上（"点 A 屏、B 屏响应"）。
+#
+# 2026-11-03 改法：用 vendor.hwc.device.primary=DSI 把 primary 换回触摸屏
+# （见 rk3568_r.mk），此处随之归零。eDP 副屏的 90° 由 App 层
+# PatientScreenPresentation.RotatedStage 承担 —— 本树 kernel/HWC 未实现 DRM
+# 标准 panel orientation，外接屏没有按屏旋转能力。
+SF_PRIMARY_DISPLAY_ORIENTATION := 0

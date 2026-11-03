@@ -55,6 +55,24 @@ PRODUCT_PROPERTY_OVERRIDES += persist.wifi.sleep.delay.ms=0
 PRODUCT_PROPERTY_OVERRIDES += persist.bt.power.down=true
 
 # ----------------------------------------------------------------------------
+# 2026-11-03 (docs/67): 双屏异显的主/副屏归属。
+#
+# 不设这两个属性时，hwcomposer(drmhwc2) 的 DrmDevice::ConfigurePossibleDisplays()
+# 会把所有 internal connector 都标成 primary 候选，然后按 connector 枚举顺序取
+# 第一个 —— 实测拿到的是 eDP-1，于是：
+#     hwcId 0 / displayId 0 = eDP-1（无触摸）  → 操作员 UI 落在没触摸的屏上
+#     hwcId 2 / displayId 1 = DSI-1（有触摸）  → 被检者画面落在触摸屏上
+# 且 goodix-ts 的 AssociatedDisplay 为空，InputReader 回落到 displayId 0，
+# 结果"点触摸屏、另一块屏响应"。
+#
+# 显式指定后：DSI-1 = primary(0)，eDP-1 = extend(1)，触摸屏即主屏。
+# 落点是 /vendor/build.prop（本树 BoardConfig.mk:140 开了
+# BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED），实测 vendor_init 能正常设置
+# vendor.* 命名空间属性。
+PRODUCT_PROPERTY_OVERRIDES += vendor.hwc.device.primary=DSI
+PRODUCT_PROPERTY_OVERRIDES += vendor.hwc.device.extend=eDP
+
+# ----------------------------------------------------------------------------
 # 2026-10-27 (docs/53 §八): tell EthernetTracker which interface is primary.
 #
 # Rockchip patched EthernetTracker.updateIfaceMatchRegexp() to read this
