@@ -126,11 +126,15 @@ on boot
     chown system system /sys/class/backlight/rk28_bl/brightness
     chown system system /sys/class/backlight/backlight/brightness
     # 分层睡眠（docs/p6/tiered-sleep-design-v3.md）：framework(system_server) 统一用 bl_power
-    # 开关两块屏背光（L1 只关灯、vp 不下电），并直写副屏亮度。写者 UID 是 system，
-    # 只要属主可写即可，不需要 0666。
+    # 开关两块屏背光（L1 只关灯、vp 不下电），并直写副屏亮度。
     chown system system /sys/class/backlight/backlight/bl_power
     chown system system /sys/class/backlight/backlight1/brightness
     chown system system /sys/class/backlight/backlight1/bl_power
+    # 副屏主动熄灭（docs/66 §11.14，双屏 Q3）：DeviceAgent(PatientPanelReceiver,
+    # platform_app 域 uid!=system) 也要写 bl_power，属主写位不够，放开到 0666；
+    # DAC 开放后的安全边界由 SELinux 类型 sysfs_backlight 收口（见 platform_app.te），
+    # 其它 app 域仍被 SELinux 拒绝。
+    chmod 0666 /sys/class/backlight/backlight1/bl_power
     
     # for hdmi
     chown root system /sys/class/display/HDMI/enable

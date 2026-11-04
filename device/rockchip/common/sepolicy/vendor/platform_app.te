@@ -5,3 +5,10 @@ allow platform_app vendor_metadata:dir { search };
 #allow platform_app vendor_file:file { getattr open read };
 rw_rockchip_graphic_device(platform_app)
 get_prop(platform_app,vendor_default_prop)
+
+# 副屏面板背光电源（docs/66 §11.14，双屏 Q3）：DeviceAgent 的 PatientPanelReceiver
+# 直接写 backlight1 的 bl_power（0=亮 / 4=灭），替代"只能整屏一起进 L1"的局面。
+# 节点类型 sysfs_backlight 打在真实设备路径上（见 genfs_contexts 的 4 条 genfscon），
+# 与 system_server 写分层睡眠用的是同一套类型，不走 sysfs 通配，不碰 neverallow。
+# 目录遍历走默认 sysfs:dir search（appdomain 已有），这里只补文件读写。
+allow platform_app sysfs_backlight:file rw_file_perms;
