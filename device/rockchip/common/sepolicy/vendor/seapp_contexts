@@ -1,0 +1,18 @@
+# ★ DeviceAgent 专用条目（2026-11-04，副屏 bl_power 代写 MCS 修复，docs/66 §11.14）
+#
+# 背景：build69 已放行 allow platform_app sysfs_backlight:file write，但运行时仍 EACCES。
+# 根因是 MLS 约束（system/sepolicy/private/mls）：
+#   mlsconstrain file { write ... } (... or l1 eq l2 or t1 == mlstrustedsubject ...)
+# 要求主客体级别完全相等（含 MCS 类别）。platform App 默认走 plat_seapp_contexts 的
+#   user=_app seinfo=platform domain=platform_app type=app_data_file levelFrom=user
+# levelFrom=user 会按 UID 派生类别（DeviceAgent uid 10064 → s0:c512,c768），
+# 而 sysfs_backlight 节点是纯 s0 → l1 eq l2 不成立 → 即使有 allow 也被约束拒。
+# mlstrustedsubject 是 system 私有属性，vendor 策略无法扩展，唯一出路是让进程不带类别。
+#
+# 本条按包名精确匹配（seapp 匹配按字段特异性排序，name= 优先于通用 platform 条目），
+# levelFrom=none 使进程落在纯 s0，与 sysfs_backlight(s0) 满足 l1 eq l2。
+# domain/type 与通用条目保持一致，仅去类别，其他 platform App 不受影响。
+#
+# 副作用：切换后 DeviceAgent 旧数据文件仍带旧类别标签（l1 dom l2 读也失配），
+# 刷机后需执行一次 pm clear com.jsy.deviceagent（其数据目录只有空 cache/code_cache，零风险）。
+user=_app seinfo=platform name=com.jsy.deviceagent domain=platform_app type=app_data_file levelFrom=none
