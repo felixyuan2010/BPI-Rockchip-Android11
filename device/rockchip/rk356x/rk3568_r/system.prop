@@ -73,3 +73,34 @@ persist.sys.timezone=Asia/Shanghai
 # 不放 PRODUCT_PROPERTY_OVERRIDES（会被改投 /vendor/build.prop 而静默失效）。
 # ---------------------------------------------------------------------------
 persist.os.fake.sleep=true
+
+# ---------------------------------------------------------------------------
+# 副屏（eDP）框架旋转 —— docs/69 §10.1 / docs/69-evidence-p0-rotation（2026-11-04 P0 实测）
+#
+# 值必须写 **3**，不是 1。这是 RK 的私有钩子，不是标准 AOSP 能力，链路三跳：
+#   LocalDisplayAdapter.java:585-601  对 ro.board.platform==rk356x 且
+#       mPhysicalDisplayId==1（= 副屏，uniqueId "local:1"）读本属性 → DisplayInfo.rotation；
+#   LogicalDisplay.java:318-345       rotation 为奇数 → 交换 logicalWidth/Height
+#       （1200×1920 → 1920×1200）；
+#   SurfaceFlinger.cpp:2620-2631      据此 setProjection(state.orientation,…)，把
+#       物理输出转 90°/270°。
+# 注意真正决定方向的是 setProjection(state.orientation,…)，state.orientation 来自 DMS
+# 下发的 DisplayInfo.rotation，**不受** physicalOrientation（仅内部屏有效）限制。
+#
+# 实测三态（dumpsys display + dumpsys SurfaceFlinger，原始输出见证据目录）：
+#   未设   transform ROT_0，逻辑 1200×1920，App 自带 RotatedStage −90° ⇒ 正立
+#   =1     transform ROT_90，逻辑 1920×1200 ⇒ 物理屏 **180° 翻转**（现场肉眼确认）
+#   =3     transform ROT_90+FLIP_V+FLIP_H（= 270°），逻辑 1920×1200 ⇒ **正立**
+# 原因：App 原本写的是 rotation=-90f ≡ 270°，=1 与之差 180°，所以 1 错 3 对。
+#
+# 生效后 RotatedStage 的 quarterTurned 变 false（ph < pw），App 不再自转 —— 这正是
+# 期望结果：框架接管旋转。内容坐标系仍是 1920×1200 px、物理面板仍是 216.9×135.0 mm，
+# 故 pxPerMmX/Y=8.854/8.889 与 VisionLevel 四档视标尺寸**全部无需改动**
+# （尺子实测：标定白条 192.0 mm、方块 67.5 mm）。主屏（DSI，id=0）不受影响。
+#
+# ⚠️ 已刷机但没清 data 的机器：/data/property/persistent_properties 里的旧值优先，
+#    会盖掉这里的值（property_service.cpp:1104 LoadPersistentProperties 启动时覆盖
+#    build.prop），表现为「固件明明写了 getprop 却不是 3」。所以刷机走 factory-wipe
+#    （make-firmware.sh 缺省），或 adb root && setprop persist.sys.rotation.einit-1 3。
+# ---------------------------------------------------------------------------
+persist.sys.rotation.einit-1=3
