@@ -1,4 +1,8 @@
+ifeq ($(strip $(VISION_PRODUCTION_KERNEL_IMAGE)),)
 WIFI_KO_FILES := $(shell find $(TOPDIR)kernel/drivers/net/wireless/rockchip_wlan -name "*.ko" -type f)
+else
+WIFI_KO_FILES := $(sort $(wildcard $(dir $(VISION_PRODUCTION_KERNEL_IMAGE))modules/*.ko))
+endif
 
 BOARD_VENDOR_KERNEL_MODULES += \
 	$(foreach file, $(WIFI_KO_FILES), $(file))

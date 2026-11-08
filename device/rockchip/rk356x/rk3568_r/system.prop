@@ -37,8 +37,7 @@ ro.net.eth_primary=eth0
 # 本文件由 build/make/core/Makefile append 进 /system/build.prop，才会真正生效。
 # ---------------------------------------------------------------------------
 ro.setupwizard.mode=DISABLED
-ro.adb.secure=0
-persist.adb.tcp.port=5555
+ro.jsy.patient_panel_policy=1
 
 # ---------------------------------------------------------------------------
 # 默认时区（2026-10-29）

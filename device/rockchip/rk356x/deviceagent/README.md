@@ -14,7 +14,7 @@
 firmware/
 ├── device.mk                       # 设备配置片段（include 到设备 device.mk）
 ├── prebuilt/
-│   └── Android.mk                  # prebuilt 模块：priv-app + platform 签名
+│   └── Android.mk                  # prebuilt 模块：保留平台签名的 priv-app
 │   └── DeviceAgent.apk             # **本仓库为唯一源**（不进 git），出包时同步到固件树
 ├── setup_deviceagent_do.sh         # 首启一次性 DO 授权脚本
 ├── deviceagent_do.rc               # init 服务（boot_completed 后触发）
@@ -44,31 +44,25 @@ firmware/
    > 于是它静默旧了一整天（仓库 2 096 765 B / 容器 2 100 369 B）没人发现。
    > 现在改为「仓库 → 容器」单向同步 + 双向 sha256 校验；gradle 产物与仓库不一致时
    > 出包会硬失败，并打印该执行的 `cp` 命令。
-4. `chmod 0755 setup_deviceagent_do.sh`（PRODUCT_COPY_FILES 保留源权限，脚本须可执行）。
-5. 正常 `build.sh`，出包。
+4. 确认 BSP 已配置 `jsy_deviceagent_provision` init 域与脚本文件标签，脚本保持 0755 权限。
+5. 按项目固件流水线构建。预装采用 `PRESIGNED`，宿主须验证输入 APK 的产品平台证书。
 
-## Device Owner 授权的两条路径
+## Device Owner 首启与修复
 
-| 构建类型 | 做法 | 说明 |
-|---|---|---|
-| **userdebug** | `ro.setupwizard.mode=DISABLED` + 首启 `dpm set-device-owner`（本目录脚本） | 最简单，我们烧录机用这个 |
-| **user** | QR/NFC provisioning，或出厂前脚本一次性授权 | 禁用向导在 user 版不被允许，`dpm set-device-owner` 可能受限；需走 managed provisioning |
-
-> 关键约束（docs/52 §五/§八）：**一台设备只能有一个 DO**。上机前先 `adb shell dumpsys device_policy` 确认 `Device Owner:` 段下**没有** `admin=ComponentInfo{com.jsy.visual/...}`，否则 vision_app 已是 DO、DeviceAgent 永远当不了 DO，需先解绑。
-> 注意：本机 Android 版本**已移除** `dpm list-owners`（报 unknown command），改用 `dumpsys device_policy`。若输出中 `Device provisioned: true`（SetupWizard 已完成），则当前这台已配置机器上 `dpm set-device-owner` 会直接失败，须先恢复出厂。
+`user` 和 `userdebug` 共用专用 init 域。脚本以 UID 0 调用 DPM，Android 11 在用户已设置的情况下仍会检查账号和额外用户。既有其他所有者或未知的设备策略输出会使流程停止。保数据刷机后按实时所有者状态检查，旧标记不参与判断。
 
 ## 接线注意事项（2026-10-28 实测踩坑，已在资产内修正）
 
 1. **product mk 里不能用 `$(call my-dir)`**：它依赖 `LOCAL_PATH`，在 product 配置上下文为空，会把 overlay 路径拼成 `/`，Soong `overlay` singleton 直接 panic（`unexpected relative path outside directory ... filepath.Rel(..., /)`）。改用 `$(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))`。
 2. **product mk 里不能 `include prebuilt/Android.mk`**：在 product 配置阶段展开 `BUILD_PREBUILT` 会让 partition 判定错乱，实测报 `unhandled install path "TARGET_OUT_DATA_APPS_PRIVILEGED"`。正确做法是只在 device.mk 里 `PRODUCT_PACKAGES += DeviceAgent`，由主 Makefile 扫描 Android.mk 定义模块。
 3. **`all-makefiles-under` 只展开一层**：`device/rockchip/rk356x/Android.mk` 找不到 `deviceagent/prebuilt/Android.mk`（两层深），需在 `deviceagent/Android.mk` 加一层转发（已提供）。
-4. **签名验证**：`make DeviceAgent` 后用 `openssl pkcs7` 提取 APK 证书指纹，应与 `build/make/target/product/security/platform.x509.pem` 的 SHA-256 一致（本树实测 `2D:37:0C:21:F5:DF:D5:53:D2:A7:96:31:4B:70:92:5F:B3:8A:DE:EF:90:86:4C:92:0B:BB:BB:12:88:7D:35:22`），并确认安装到 `system/priv-app/DeviceAgent/`。
+4. **签名验证**：用 `apksigner verify --print-certs` 检查输入 APK 的 SHA-256 证书指纹，与产品 BSP 实际配置的签名证书对比。确认最终 APK 安装到 `system/priv-app/DeviceAgent/`，并与输入 APK 字节一致。
 
 ## 锁屏生效链
 
 1. 系统启动 → `deviceagent_do.rc` 在 `sys.boot_completed=1` 触发 `setup_deviceagent_do.sh`。
-2. 脚本调用 `dpm set-device-owner com.jsy.deviceagent/.admin.AdminReceiver`。重入判据以**实际 DO 状态**为准（`/data/system/device_owner_2.xml`），标记文件仅作辅助——保数据刷机会保留 `/data`，只认标记会导致 DO 被清掉后永不再授权。
-3. `AdminReceiver` 成为 DO 后，在 `onEnabled` / `onProfileProvisioningComplete` 回调里 `setLockTaskPackages(["com.jsy.visual"])`（非 DO 时跳过，避免 SecurityException）。
+2. 脚本读取 `dumpsys device_policy`，当前没有 DO 时调用 `dpm set-device-owner com.jsy.deviceagent/.admin.AdminReceiver`。
+3. Agent 在开机、授权及所有者变更时对账。确认为 DO 后下发 lockTask 白名单及 HOME 策略。
 4. vision_app 在前台 `Activity.startLockTask()` 进入真正锁屏（滑不出、无导航）。
 5. 导航栏由 `overlay/config_showNavigationBar=false` 全局隐藏，作为双保险。
    **实测更正（2026-10-29，build45 真机）**：这版 RK 固件不遵循该开关（`framework-res` 里已是 `false`，导航栏仍显示）；`policy_control=immersive.full=*` 同样无效（new insets mode FULL，`InsetsPolicy` 不读 `PolicyControl`）。实际隐藏由 vision_app 在 `onActivityResumed` 调 `WindowInsetsController.hide(systemBars())` 完成，并与 `startLockTask()` 配合。
@@ -78,7 +72,7 @@ firmware/
 - 若 lockTask 未生效**且**导航栏被隐藏，设备将无退回手段。回退：
   - 调试期保留 adb（`192.168.1.247:5555`）/ 串口。
   - 生产机提供隐藏工程菜单（长按音量键 + 电源，进入后可选"解除锁屏/重启"）。
-- DO 授权失败会在 `/dev/kmsg` 留 `deviceagent_do: ...` 日志，现场 `dmesg | grep deviceagent_do` 排查。
+- DO 授权日志可用 `logcat -s deviceagent_do` 查看。
 
 ## 不在此次范围（IA3+）
 

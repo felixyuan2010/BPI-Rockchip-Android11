@@ -268,6 +268,8 @@ public final class PowerManagerService extends SystemService
 
     /** Delay between entering L1 and entering L2 (real deep sleep). */
     private static final String SETTING_DEEP_SLEEP_TIMEOUT_MS = "deep_sleep_timeout_ms";
+    private static final String SETTING_PATIENT_PANEL_REQUESTED_ON = "patient_panel_requested_on";
+    private boolean mPatientPanelRequestedOn = true;
     private static final int DEFAULT_DEEP_SLEEP_TIMEOUT_MS = 60 * 60 * 1000;
 
     // System Property indicating that retail demo mode is currently enabled.
@@ -1214,6 +1216,8 @@ public final class PowerManagerService extends SystemService
         resolver.registerContentObserver(Settings.System.getUriFor(
                 SETTING_SECONDARY_BRIGHTNESS),
                 false, mSettingsObserver, UserHandle.USER_ALL);
+        resolver.registerContentObserver(Settings.Secure.getUriFor(
+                SETTING_PATIENT_PANEL_REQUESTED_ON), false, mSettingsObserver, UserHandle.USER_ALL);
         resolver.registerContentObserver(Settings.System.getUriFor(
                 SETTING_DEEP_SLEEP_TIMEOUT_MS),
                 false, mSettingsObserver, UserHandle.USER_ALL);
@@ -1367,6 +1371,8 @@ public final class PowerManagerService extends SystemService
                     + MAX_SECONDARY_BRIGHTNESS + "], using " + clampedSecondaryBrightness);
         }
         mSecondaryScreenBrightnessSetting = clampedSecondaryBrightness;
+        mPatientPanelRequestedOn = Settings.Secure.getIntForUser(resolver,
+                SETTING_PATIENT_PANEL_REQUESTED_ON, 1, UserHandle.USER_CURRENT) != 0;
 
         // Tiered sleep: L1 -> L2 threshold, counted from the last user activity.
         mDeepSleepTimeoutSetting = Settings.System.getIntForUser(resolver,
@@ -1907,7 +1913,8 @@ public final class PowerManagerService extends SystemService
         }
         Slog.i(TAG, "Tiered sleep L1 exit: backlight on");
         writeSysfsIntLocked(PATH_BL_POWER_PRIMARY, BL_POWER_ON);
-        writeSysfsIntLocked(PATH_BL_POWER_SECONDARY, BL_POWER_ON);
+        writeSysfsIntLocked(PATH_BL_POWER_SECONDARY,
+                mPatientPanelRequestedOn ? BL_POWER_ON : BL_POWER_OFF);
         mTieredSleepL1Active = false;
         mHandler.removeMessages(MSG_TIERED_SLEEP_L2_TIMEOUT);
     }
@@ -1973,6 +1980,19 @@ public final class PowerManagerService extends SystemService
      * only updates props.brightness, the kernel keeps PWM disabled, so a settings write
      * during L1 cannot light the panel up.
      */
+    private void updatePatientPanelPowerLocked(int dirty) {
+        final int panelDirty = DIRTY_SETTINGS | DIRTY_WAKEFULNESS
+                | DIRTY_ACTUAL_DISPLAY_POWER_STATE_UPDATED | DIRTY_BOOT_COMPLETED;
+        if ((dirty & panelDirty) == 0 || !mBootCompleted || mTieredSleepL1Active
+                || !mDisplayReady || getWakefulnessLocked() != WAKEFULNESS_AWAKE) {
+            return;
+        }
+        // The kernel may reset backlight state during display unblank. Apply the
+        // requested state again once display power transitions have completed.
+        writeSysfsIntLocked(PATH_BL_POWER_SECONDARY,
+                mPatientPanelRequestedOn ? BL_POWER_ON : BL_POWER_OFF);
+    }
+
     private void updateSecondaryScreenBrightnessLocked(int dirty) {
         if ((dirty & DIRTY_SETTINGS) == 0) {
             return;
@@ -2241,6 +2261,7 @@ public final class PowerManagerService extends SystemService
 
             // Phase 3: Update display power state.
             final boolean displayBecameReady = updateDisplayPowerStateLocked(dirtyPhase2);
+            updatePatientPanelPowerLocked(dirtyPhase2);
 
             // Phase 4: Update dream state (depends on display ready signal).
             updateDreamLocked(dirtyPhase2, displayBecameReady);

@@ -40,6 +40,11 @@ PRODUCT_CHARACTERISTICS := tablet
 # product makefile, NOT BoardConfig.mk (readonly after product config).
 PRODUCT_DEFAULT_DEV_CERTIFICATE := $(LOCAL_PATH)/security/platform
 
+# TCP ADB is a lab transport. AOSP still authenticates its host keys.
+ifneq ($(filter eng userdebug,$(TARGET_BUILD_VARIANT)),)
+PRODUCT_SYSTEM_PROPERTIES += persist.adb.tcp.port=5555
+endif
+
 PRODUCT_NAME := rk3568_r
 PRODUCT_DEVICE := rk3568_r
 PRODUCT_BRAND := rockchip
@@ -160,6 +165,9 @@ PRODUCT_COPY_FILES += \
 # P6: grant the platform App access to exactly the two product UARTs.
 # Kept separate from mcu_notify.rc: no MCU/watchdog lifecycle changes.
 BOARD_SEPOLICY_DIRS += device/rockchip/rk356x/rk3568_r/sepolicy_vision
+# The Android 11 policy build maps this variable to system_ext private policy.
+BOARD_PLAT_PRIVATE_SEPOLICY_DIR += \
+    device/rockchip/rk356x/rk3568_r/sepolicy_vision_system_ext
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/vision_uart.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/vision_uart.rc
 

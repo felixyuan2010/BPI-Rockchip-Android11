@@ -18,6 +18,13 @@ TARGET_2ND_CPU_ABI2 := armeabi
 TARGET_2ND_CPU_VARIANT := cortex-a55
 
 TARGET_PREBUILT_KERNEL := kernel/arch/arm64/boot/Image
+ifeq ($(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT),rk3568_r-user)
+# The production firmware pipeline supplies an independently compiled Image.
+# Keep the engineering kernel available to the userdebug build.
+ifneq ($(strip $(VISION_PRODUCTION_KERNEL_IMAGE)),)
+TARGET_PREBUILT_KERNEL := $(VISION_PRODUCTION_KERNEL_IMAGE)
+endif
+endif
 BOARD_PREBUILT_DTBIMAGE_DIR := kernel/arch/arm64/boot/dts/rockchip
 
 PRODUCT_UBOOT_CONFIG ?= rk3568

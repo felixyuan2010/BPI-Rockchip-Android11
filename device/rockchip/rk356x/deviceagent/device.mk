@@ -38,10 +38,10 @@ ifeq ($(DEVICEAGENT_HIDE_NAV_BAR),true)
 DEVICE_PACKAGE_OVERLAYS += $(DEVICEAGENT_DIR)/overlay
 endif
 
-# 3) 首启 DO 授权脚本 + init 服务（在 SetupWizard 之前完成 DO 授权）。
+# 3) 首启 DO 授权脚本 + init 服务，由产品 system_ext SELinux 策略标记。
 PRODUCT_COPY_FILES += \
-    $(DEVICEAGENT_DIR)/setup_deviceagent_do.sh:system/bin/setup_deviceagent_do.sh \
-    $(DEVICEAGENT_DIR)/deviceagent_do.rc:system/etc/init/deviceagent_do.rc
+    $(DEVICEAGENT_DIR)/setup_deviceagent_do.sh:$(TARGET_COPY_OUT_SYSTEM_EXT)/bin/setup_deviceagent_do.sh \
+    $(DEVICEAGENT_DIR)/deviceagent_do.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/deviceagent_do.rc
 
 # 4) 禁用 SetupWizard / kiosk 运维通道（ro.adb.secure、persist.adb.tcp.port）。
 #    ⚠️ 这些属性**不能**放 PRODUCT_PROPERTY_OVERRIDES：本树开了

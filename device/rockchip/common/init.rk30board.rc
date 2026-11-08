@@ -130,12 +130,7 @@ on boot
     chown system system /sys/class/backlight/backlight/bl_power
     chown system system /sys/class/backlight/backlight1/brightness
     chown system system /sys/class/backlight/backlight1/bl_power
-    # 副屏主动熄灭（docs/66 §11.14，双屏 Q3）：DeviceAgent(PatientPanelReceiver,
-    # platform_app 域 uid!=system) 也要写 bl_power，属主写位不够，放开到 0666；
-    # DAC 开放后的安全边界由 SELinux 类型 sysfs_backlight 收口（见 platform_app.te），
-    # 其它 app 域仍被 SELinux 拒绝。
-    chmod 0666 /sys/class/backlight/backlight1/bl_power
-    
+
     # for hdmi
     chown root system /sys/class/display/HDMI/enable
     chown root system /sys/class/display/HDMI/mode
@@ -264,12 +259,12 @@ on sys-boot-completed-set && property:persist.sys.zram_enabled=1
     swapon_all /vendor/etc/fstab.${ro.hardware}
 
 # for Internet adb
-on property:persist.internet_adb_enable=1
+on property:persist.internet_adb_enable=1 && property:ro.debuggable=1
     setprop service.adb.tcp.port 5555
     restart adbd
 
 # for Internet adb
-on property:persist.internet_adb_enable=0
+on property:persist.internet_adb_enable=0 && property:ro.debuggable=1
     setprop service.adb.tcp.port 0
     restart adbd
 
@@ -281,6 +276,9 @@ on property:persist.internet_adb_enable=0
 # set ro.serialno
 on property:vendor.serialno=*
     setprop ro.serialno ${vendor.serialno}
+
+# Only engineering builds refresh an ADB session after a serial change.
+on property:vendor.serialno=* && property:ro.debuggable=1
     restart adbd
 
 on property:vendor.cts_gts.status=true
@@ -344,10 +342,10 @@ on property:vts.native_server.on=1
     setprop vendor.vts_test true
 
 # For Control Adb in Booting
-on property:persist.sys.adb_enable=1
+on property:persist.sys.adb_enable=1 && property:ro.debuggable=1
     restart adbd
 
-on property:persist.sys.adb_enable=0
+on property:persist.sys.adb_enable=0 && property:ro.debuggable=1
     stop adbd
 
 service flash_img /vendor/bin/flash_img.sh

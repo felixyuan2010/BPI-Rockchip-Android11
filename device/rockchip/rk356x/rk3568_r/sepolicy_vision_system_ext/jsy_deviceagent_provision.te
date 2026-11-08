@@ -1,0 +1,21 @@
+# Fixed product boot script. It has no interactive shell entry point.
+type jsy_deviceagent_provision, domain, coredomain;
+type jsy_deviceagent_provision_exec, system_file_type, exec_type, file_type;
+init_daemon_domain(jsy_deviceagent_provision)
+
+# mksh, toybox and system service command wrappers.
+allow jsy_deviceagent_provision shell_exec:file rx_file_perms;
+allow jsy_deviceagent_provision toolbox_exec:file rx_file_perms;
+allow jsy_deviceagent_provision system_file:file rx_file_perms;
+
+binder_use(jsy_deviceagent_provision)
+binder_call(jsy_deviceagent_provision, system_server)
+binder_call(system_server, jsy_deviceagent_provision)
+allow jsy_deviceagent_provision {
+    appops_service
+    device_policy_service
+    package_service
+    settings_service
+}:service_manager find;
+allow system_server jsy_deviceagent_provision:fifo_file { getattr write };
+write_logd(jsy_deviceagent_provision)

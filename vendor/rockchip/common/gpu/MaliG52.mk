@@ -5,6 +5,8 @@ PRODUCT_PACKAGES += \
         libGLES_mali \
         vulkan.$(TARGET_BOARD_PLATFORM)
 
+# The production kernel has Mali Bifrost built in.
+ifeq ($(strip $(VISION_PRODUCTION_KERNEL_IMAGE)),)
 DRIVER_PATH := kernel/drivers/gpu/arm/bifrost/bifrost_kbase.ko
 HAS_BUILD_KERNEL := $(shell test -e $(DRIVER_PATH) && echo true)
 
@@ -14,6 +16,7 @@ BOARD_VENDOR_KERNEL_MODULES += \
 else
 BOARD_VENDOR_KERNEL_MODULES += \
 	$(DRIVER_PATH)
+endif
 endif
 
 endif

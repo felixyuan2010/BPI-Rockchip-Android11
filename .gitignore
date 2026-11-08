@@ -55,3 +55,7 @@ device/rockchip/rk356x/rk3568_r/BoardConfig.mk.orig
 # make-firmware.sh 运行时从 vision_app/firmware 同步过来的脚本副本（唯一源在那边），
 # 忽略是为了防止有人在这里改了然后被误提交
 /tools/firmware/
+
+# Independent production output and local boot backup are generated assets.
+/out-vision-user/
+/kernel/android-boot-orig.img
